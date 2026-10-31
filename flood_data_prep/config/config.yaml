@@ -1,0 +1,227 @@
+# ---------------------------------------------------------------------------
+# Flood-risk data preparation: central configuration
+# Every script reads this file (pass --config to use another one).
+# Paths are relative to the project root (the folder that contains /config).
+# ---------------------------------------------------------------------------
+
+project:
+  name: "Brahmaputra basin (Assam) flood risk"
+  # seasonal : labels are annual/seasonal district totals -> district-year model + window rainfall hazard (YOUR data)
+  # daily    : labels are real daily reports -> district-day next-day model (original design, kept for future daily data)
+  mode: seasonal
+  start_date: "2019-01-01"      # first day of the modelling table
+  end_date: "2023-12-31"        # last day of the modelling table
+  target_lead_days: 1           # features at day t  ->  label at day t+lead
+
+paths:
+  raw: data/raw
+  interim: data/interim
+  processed: data/processed
+  export: data/backend_export
+  reports: reports
+
+# ---------------------------------------------------------------------------
+# Districts
+# ---------------------------------------------------------------------------
+districts:
+  # Authoritative polygons: 33 Assam districts, EPSG:4326, fields dt_code / district / st_code / year / st_nm.
+  boundary_file: data/raw/boundaries/assam_districts.geojson
+  name_field: district          # null = auto-detect
+  # null = use EVERY district in the boundary file (33). Or list a subset to restrict the study area.
+  selected: null
+  # canonical (boundary-file) name -> alternative spellings found in other sources (labels, rainfall CSVs, ...)
+  aliases:
+    Karimganj: ["Sribhumi", "Sri Bhumi", "Sribhumi (Karimganj)"]
+    Lakhimpur: ["North Lakhimpur", "Lakhimpur North"]
+    Morigaon: ["Marigaon"]
+    Nagaon: ["Nowgong"]
+    Sivasagar: ["Sibsagar"]
+    "Kamrup Metropolitan": ["Kamrup (M)", "Kamrup Metro", "Kamrup Metropolitan District"]
+    "South Salmara Mankachar": ["South Salmara-Mankachar", "South Salmara", "South Salmara Mankachar"]
+    "Dima Hasao": ["North Cachar Hills", "N C Hills", "N.C. Hills"]
+    "Karbi Anglong": ["East Karbi Anglong"]
+    "West Karbi Anglong": ["Karbi Anglong West", "West Karbi Anglong"]
+    Biswanath: ["Biswanath Chariali"]
+    Dhubri: ["Dhubri"]
+  # Districts that exist in reports but NOT in the boundary file (created after the boundary file was drawn).
+  # Their numbers are ADDED to the parent district whose polygon contains their area. Every merge is logged
+  # in reports/label_audit.md. Delete an entry to stop merging it (it will then be reported as unmatched).
+  merge_into_parent:
+    Bajali: Barpeta               # carved out of Barpeta (2020-21)
+    Tamulpur: Baksa               # carved out of Baksa (2022): ASSUMED parent, please verify against the memoranda
+    # Sribhumi etc. are handled by aliases (rename, same area), not merges.
+
+# ---------------------------------------------------------------------------
+# Rainfall
+# ---------------------------------------------------------------------------
+rainfall:
+  # netcdf       : gridded files in data/raw/rainfall/*.nc (CHIRPS / IMD / ERA5 ...) -> area mean per district
+  # district_csv : already district-level daily rainfall (e.g. Assam Water Dept / NWDP): data/raw/rainfall/*.csv
+  #                with columns district,date,rain_mm   (see docs/DATA_SOURCES.md)
+  source: station_csv           # station_csv (manual gauges: Assam Water Dept / NWDP) | netcdf | district_csv
+  # ---- station_csv: files in data/raw/rainfall/. One row per station-day. Column names are matched ignoring case/spaces/punctuation.
+  station_csv:
+    files: [rainfall_assam_1991_2020.csv, rainfall_assam_2021_2025.csv]      # null = every CSV in the folder
+    columns: {station: Station, district: District, lat: Latitude, lon: Longitude,
+              date: "Data Acquisition Time", rain: "Manual Daily Rainfall (mm)", agency: Agency}
+    # Text that means "no observation". Negative numbers are always treated as missing; 0 is a real zero.
+    missing_values: ["", "NA", "N/A", "NaN", "NULL", "-", "--"]
+    date_dayfirst: true                  # "09-03-2021" = 9 March 2021
+    date_shift_days: 0                   # readings are taken at 08:30 and cover the PREVIOUS 24 h; 0 keeps the recorded date, -1 moves it to the day the rain fell
+    duplicate_policy: missing            # same station + date twice with CONFLICTING values: missing (day becomes missing) | mean | max | first
+    review_mm: 300                       # values above this are flagged in reports/rainfall_extreme_values.csv (kept); above max_daily_mm they are excluded
+    district_source: polygon_then_column # polygon_then_column | polygon | column
+    max_daily_mm: 1000                   # larger values are treated as errors
+    min_stations_per_district_day: 1
+    idw: {enabled: false, radius_km: 50, power: 2, max_stations: 4}    # OFF by default: borrowing rain from neighbouring districts is an assumption; enable only if you accept it (flagged source=idw)
+  min_obs_fraction: 0.8                  # a window or season total needs this share of its days observed, otherwise it is missing
+  # Only used by scripts/02_download_rainfall.py (optional). Skip it if you already have the .nc files.
+  download_source: chirps_erddap
+  bbox: [88.0, 24.0, 97.5, 30.0]
+  buffer_days: 45               # rainfall needed BEFORE start_date so 30-day windows are complete on day 1
+  variable: auto                # or the exact NetCDF variable name, e.g. precip / rf / tp (run scripts/00_inspect_inputs.py)
+  units: auto                   # auto | mm_per_day | m_per_day  (ERA5 'tp' is metres; auto reads the NetCDF 'units' attribute)
+  # Minimum share of days that must be non-missing in a district's series; below this the step stops.
+  min_coverage_pct: 90
+  # Upstream zone. ONLY used if the NetCDF grid actually covers it. If your files were clipped to Assam,
+  # the zone is skipped (with a warning) instead of silently using an edge cell.
+  upstream:
+    enabled: true
+    geometry_file: null
+    bbox: [93.0, 27.0, 97.5, 29.5]
+
+# ---------------------------------------------------------------------------
+# River gauges (CWC / India-WRIS exports)
+# ---------------------------------------------------------------------------
+# NOT AVAILABLE in the current dataset collection: scripts/04 writes empty gauge outputs and the gauge features
+# are simply absent from the model. Keep this section if you obtain CWC / India-WRIS data later.
+gauge:
+  max_station_distance_km: 75   # a district gets a station only if one is this close (or inside it)
+  interpolate_max_gap_days: 3   # linear-interpolate gaps up to this long
+  max_spike_dev_m: 4.0          # drop readings deviating more than this from the 7-day centred median
+
+# ---------------------------------------------------------------------------
+# Labels (observed flood severity per district-day)
+# ---------------------------------------------------------------------------
+labels:
+  # Folder with the cleaned label CSVs (district,date,affected_population + optional audit columns
+  # period_start, period_end, label_granularity, source_pdf, source_section). All *.csv in the folder are read.
+  input_dir: data/processed/labels/annual
+  # --- seasonal mode (annual/seasonal district totals) ---
+  # The AUTHORITATIVE file. Other non-summary CSVs in the folder are only compared with it (see reports/label_audit.md).
+  files: [seasonal_flood_labels_all_years.csv]
+  exclude_patterns: ["*summary*"]
+  annual:
+    granularities: [seasonal, annual, season, yearly, year, cumulative, total]   # rows with other label_granularity values are not used
+    min_period_days: 60                  # a row with a period at least this long counts as seasonal/annual even if label_granularity is unrecognised (reported)
+    absent_district_policy: unknown      # unknown | zero : a district missing for a year is unknown unless you decide it means zero
+    duplicate_policy: max                # several rows for one district-year (e.g. sections/pages): max | sum | first
+    exclude_quality_flags: []            # quality_flag values to drop (see the audit for the values that occur)
+    # classes: quantiles of the metric over TRAINING YEARS only (splits.train_end); relative severity bands of this dataset
+    quantiles: [0.40, 0.70, 0.90]        # Low = lowest 40 %, Moderate next 30 %, High next 20 %, Severe top 10 %
+  # --- daily mode only (below) ---
+  # affected_population : absolute people affected
+  # affected_pct        : % of district population (needs data/raw/population/population.tif)
+  # auto                : affected_pct if population is available, else affected_population
+  metric: auto
+
+  # --- how granularity is handled (see docs/LABELS.md) -------------------------------------------------
+  # Values of `label_granularity` are mapped to three kinds. Unknown values are reported, never guessed.
+  granularity_map:
+    daily:    [daily, day, daily_report, situation_report, report]
+    period:   [period, event, wave, flood_wave, weekly, range, spell]
+    seasonal: [seasonal, season, annual, yearly, year, cumulative, total, memorandum_total]
+  # Used when the CSVs have no label_granularity column.
+  default_granularity: daily
+  # `period` rows (a total over period_start..period_end):
+  #   exclude : not used as daily labels (default; a total is not a daily value)
+  #   window  : every day of the period receives the period's class, flagged label_quality='period'.
+  #             Only periods up to max_period_days are used; longer ones are treated as seasonal.
+  period_policy: exclude
+  max_period_days: 31
+  # `seasonal` rows are NEVER spread over days. They go to data/interim/labels_seasonal.csv for
+  # district-season analysis and sanity checks.
+
+  # --- what a district that is NOT listed in a daily report means ---------------------------------------
+  # unknown        : label unknown (row excluded from training). Honest, but leaves almost no Low examples.
+  # zero_on_report_dates : on a date that HAS a daily report, a district missing from it had no reported impact
+  #                  (reports list only affected districts) -> impact 0. On dates with NO report -> unknown.
+  #                  This is an assumption; state it in your report. Dry-season days are NOT turned into zeros.
+  # zero           : absent -> 0 on every calendar day (inflates Low with dry-season days; not recommended)
+  absence_policy: zero_on_report_dates
+
+  # --- class boundaries ---------------------------------------------------------------------------------
+  # train_quantile : Low = impact <= min_impact. Among POSITIVE impacts on TRAINING dates only (splits.train_end):
+  #                  Moderate < quantile[0] <= High < quantile[1] <= Severe. Thresholds are saved to
+  #                  data/interim/label_thresholds.json and reused unchanged for val/test (no leakage).
+  #                  These are RELATIVE severity bands of this dataset (Severe = the worst ~10% of impacted
+  #                  district-days), not official flood categories. Say so in the report.
+  # fixed          : use `thresholds` below ([Low|Moderate, Moderate|High, High|Severe]); placeholders unless justified
+  threshold_method: train_quantile
+  quantiles: [0.50, 0.90]
+  min_impact: 0                       # impact <= this counts as Low (e.g. 0.01 (%) to ignore tiny numbers)
+  thresholds: [0.5, 5.0, 15.0]        # only for threshold_method: fixed
+  class_names: [Low, Moderate, High, Severe]
+  # Days with fewer than this many positive (>= Moderate) TRAIN labels trigger a loud 'not trainable' warning.
+  min_positive_train_rows: 100
+
+# ---------------------------------------------------------------------------
+# Feature engineering
+# ---------------------------------------------------------------------------
+features:
+  rain_windows: [1, 3, 7, 15, 30]
+  api_decay: 0.85               # antecedent precipitation index decay per day
+  upstream_windows: [1, 3, 7]
+  upstream_lags: [2]
+  drop_rows_without_target: true   # rows whose next-day label is unknown are removed (NOT filled)
+
+# ---------------------------------------------------------------------------
+# Time-based train / validation / test split (NEVER split flood data randomly)
+# ---------------------------------------------------------------------------
+splits:
+  train_end: "2021-12-31"
+  val_end: "2022-12-31"          # everything after this is "test"
+
+# ---------------------------------------------------------------------------
+# Terrain (zonal statistics from data/raw/terrain/dem.tif; Copernicus GLO-30 = a surface model, not bare earth)
+# ---------------------------------------------------------------------------
+population:
+  product: null                         # e.g. "WorldPop 2020 1km"  - write what the file REALLY is once you have verified it
+  year: null
+  units: people_per_pixel               # people_per_pixel | people_per_km2 (must match the raster; NOT guessed)
+  units_verified: false                 # set true only after checking the source; the report says UNVERIFIED until then
+  expected_state_total: [25000000, 45000000]
+
+terrain:
+  downsample_factor: 1          # 1 = full 30 m. Use 2-4 on a low-memory laptop (slope is then smoother).
+  nodata_below: -500            # also treat anything below this as no-data (-9999 is read from the file)
+  low_lying_margin_m: 5.0       # low_lying_frac = share of district pixels within this many m of the district's p2 elevation
+  min_valid_coverage_pct: 95    # warn if fewer valid DEM pixels than this inside a district
+
+# ---------------------------------------------------------------------------
+# Window rainfall hazard (RULE-BASED, no labels needed) and seasonal rainfall features
+# ---------------------------------------------------------------------------
+hazard:
+  windows: [3, 7, 15, 30]
+  # REFERENCE PERIOD for the climatology. The files only hold dense data from ~2015 (2001-2014 is very sparse), so 1991-2018 is NOT available.
+  # [2015, 2018] is a CANDIDATE, not a verified choice: run scripts/11_reference_period_check.py and read reports/climatology_coverage.csv.
+  # It must end before the first label year (2019) so features never see the evaluation period.
+  baseline_years: [2015, 2018]
+  doy_halfwidth: 15                     # compare with totals ending within +-15 days of the same calendar day
+  min_baseline_values: 60               # window totals needed in the +-doy_halfwidth pool of a (district, window, day-of-year)
+  min_baseline_years: 3                 # ... coming from at least this many distinct years; otherwise NO threshold -> hazard unknown
+  min_normal_years: 3                   # baseline years with a full season needed for a district's 'normal season' reference
+  quantile_grid: [0.5, 0.75, 0.9, 0.95, 0.97, 0.99]
+  level_quantiles: [0.75, 0.90, 0.97]   # exceeding these -> Moderate / High / Severe (a RAINFALL-EXTREMITY scale, not a flood prediction)
+
+season:
+  source: label_period                  # label_period: rainfall is aggregated over each label row's own period_start..period_end
+  fixed: {start: "06-01", end: "09-30"} # used if a label row has no period, and for the 'normal season' reference
+  heavy_day_quantile: 0.95              # heavy day = district rainfall above this quantile of baseline wet days (>= 1 mm)
+
+# ---------------------------------------------------------------------------
+# Offline model comparison (scripts/10_compare_models.py)
+# ---------------------------------------------------------------------------
+compare:
+  bootstrap: 500
+  random_state: 42

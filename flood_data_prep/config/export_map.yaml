@@ -1,0 +1,49 @@
+# ---------------------------------------------------------------------------
+# Seasonal mode (default) uses ONLY `state_name` and `districts` / `optional_static` below; the daily_features section
+# belongs to the daily mode.
+#
+# Export profile "backend_v2": the schema of flood_risk_backend v2 (rainfall + terrain features only).
+#
+# v1 had 12 features including river gauge, distance-to-river and drainage density. Those data sets are not available,
+# so the backend no longer has them (see backend README, "What changed in v2").
+#
+# Anything else in the processed table (upstream rain, antecedent index, slope percentiles, ...) is NOT sent to the API;
+# it is written to data/backend_export/model_table_full.csv for offline LR -> RF -> XGBoost experiments.
+# ---------------------------------------------------------------------------
+state_name: Assam
+
+districts_file: districts.csv
+daily_features_file: daily_features.csv
+
+# backend districts.csv column  <-  processed/static column
+districts:
+  mean_elevation_m: elev_mean_m
+  elevation_std_m: elev_std_m
+  mean_slope_deg: slope_mean_deg
+  low_lying_frac: low_lying_frac
+  pop_density_km2: pop_density_km2          # optional: left empty when no population raster was provided
+
+# backend daily_features.csv column  <-  processed column
+daily_features:
+  rainfall_mm: rain_1d
+  rainfall_3day_cum_mm: rain_3d
+  rainfall_7day_cum_mm: rain_7d
+  rainfall_15day_cum_mm: rain_15d
+  rainfall_30day_cum_mm: rain_30d
+  rainfall_deviation_pct: rainfall_deviation_pct
+
+# These must never be empty (NOT NULL in the backend tables).
+required_non_null:
+  - rainfall_mm
+  - rainfall_3day_cum_mm
+  - rainfall_7day_cum_mm
+  - rainfall_15day_cum_mm
+  - rainfall_30day_cum_mm
+  - rainfall_deviation_pct
+required_static:
+  - mean_elevation_m
+  - elevation_std_m
+  - mean_slope_deg
+  - low_lying_frac
+optional_static:
+  - pop_density_km2
