@@ -42,7 +42,13 @@ class AssessmentOut(BaseModel):
     hazard: HazardOut
     vulnerability: Optional[VulnerabilityOut] = None
     combined: CombinedOut
+    unavailable_reason: Optional[str] = Field(None, description="plain-language reason when hazard and/or combined are unknown; null when both are known")
     disclaimer: str = DISCLAIMER
+
+
+SCENARIO_DISCLAIMER = ("HYPOTHETICAL SCENARIO, not an observation and not a forecast. The rain total was typed by the user and "
+                       "is not stored. Hazard compares it with the district's own history for that time of year; the combined level is a "
+                       "rule-based index that has not been validated against observed floods.")
 
 
 class ScenarioIn(BaseModel):

@@ -45,7 +45,9 @@ def test_missing_rainfall_gives_unknown_not_low(client, computed):
 
 def test_list_default_latest_and_unknown_window(client, computed):
     r = client.get("/assessments", params={"window_days": 7}).json()
-    assert len(r) == 1 and r[0]["as_of_date"] == "2023-07-10"   # last day with rainfall data
+    # rows exist up to the requested --end (07-13); the last 3 days have no rainfall so they are unknown, not zero
+    assert len(r) == 1 and r[0]["as_of_date"] == "2023-07-13" and r[0]["status"] == "insufficient_rainfall_data"
+    assert client.get("/assessments", params={"window_days": 7, "date": "2023-07-10"}).json()[0]["status"] == "ok"
     assert client.get("/assessments", params={"window_days": 5}).status_code == 422
     assert client.get("/assessments", params={"window_days": 7, "date": "1999-01-01"}).status_code == 404
 

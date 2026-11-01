@@ -31,28 +31,51 @@ log = get_logger("03_extract_rain")
 
 
 def required_window(cfg):
+    """Days the features need. In seasonal mode this also includes the climatology reference years (hazard.baseline_years)."""
     pc = cfg["project"]
     start = pd.Timestamp(pc["start_date"]) - pd.Timedelta(days=cfg["rainfall"]["buffer_days"])
+    if pc.get("mode", "seasonal") == "seasonal" and cfg.get("hazard", {}).get("baseline_years"):
+        start = min(start, pd.Timestamp(int(cfg["hazard"]["baseline_years"][0]), 1, 1))
     return start, pd.Timestamp(pc["end_date"])
+
+
+def check_chirps_v3(f, ds, cc):
+    """A file used as CHIRPS v3 must say so (written by step 02) and be mm/day. v2 or unlabelled files are refused, never used silently."""
+    a = ds.attrs
+    if str(a.get("product", "")) != "CHIRPS-v3.0" or str(a.get("version", "")) != "3.0":
+        raise ValueError(f"{f.name}: not a CHIRPS v3.0 file written by scripts/02_download_rainfall.py (attrs product={a.get('product')!r}, "
+                         f"version={a.get('version')!r}). Remove it from data/raw/rainfall or fix rainfall.chirps_v3.file_glob; CHIRPS v2 is not used.")
+    if str(a.get("units", "")).replace(" ", "").lower() not in ("mm/day", "mm/d"):
+        raise ValueError(f"{f.name}: units attribute {a.get('units')!r} is not mm/day")
+    if a.get("daily_product") != cc["product"] or a.get("stage") != "final":
+        raise ValueError(f"{f.name}: daily_product={a.get('daily_product')!r}/stage={a.get('stage')!r} differs from the configured "
+                         f"{cc['product']!r}/final. No silent product switching.")
 
 
 def from_netcdf(cfg, districts):
     zones = {r.district_id: r.geometry for r in districts.itertuples()}
+    chirps = cfg["rainfall"].get("source") == "chirps_v3"
+    cc = cfg["rainfall"].get("chirps_v3", {})
     up = cfg["rainfall"].get("upstream", {})
-    if up.get("enabled", True):
+    if up.get("enabled", True) and not chirps:
         if up.get("geometry_file"):
             zones["UPSTREAM"] = gpd.read_file(up["geometry_file"]).to_crs("EPSG:4326").geometry.union_all()
         elif up.get("bbox"):
             zones["UPSTREAM"] = box(*up["bbox"])
-    files = sorted((cfg["paths"]["raw"] / "rainfall").glob("*.nc"))
+    glob = cc.get("file_glob", "chirps_v3_*.nc") if chirps else cfg["rainfall"].get("netcdf_glob", "*.nc")
+    files = sorted((cfg["paths"]["raw"] / "rainfall").glob(glob))
     if not files:
-        sys.exit("No .nc files in data/raw/rainfall. (Use rainfall.source: district_csv for CSV rainfall.)")
+        sys.exit(f"No files matching {glob} in data/raw/rainfall. " + ("Run scripts/02_download_rainfall.py first." if chirps else
+                 "(Use rainfall.source: district_csv for CSV rainfall.)"))
+    minw = float(cfg["rainfall"].get("min_valid_cell_fraction", 0.0))
 
     frames, info_all = [], {}
     for f in files:
         with xr.open_dataset(f) as ds:
             ds = ds.load()
-        df, info, notes = zonal_mean(ds, zones, cfg["rainfall"].get("variable", "auto"), cfg["rainfall"].get("units", "auto"))
+        if chirps:
+            check_chirps_v3(f, ds, cc)
+        df, info, notes = zonal_mean(ds, zones, cfg["rainfall"].get("variable", "auto"), cfg["rainfall"].get("units", "auto"), minw)
         frames.append(df.assign(source_file=f.name))
         for z, i in info.items():
             prev = info_all.get(z)
@@ -99,7 +122,41 @@ def from_district_csv(cfg, districts):
     return allr[["date", "zone_id", "rain_mm", "source_file"]], {}
 
 
-def from_stations(cfg, districts, interim, reports):
+def supplementary_stations(cfg, districts, interim, reports, primary):
+    """NWDP gauges as SUPPLEMENTARY data: processed with the same strict rules but written to separate files, never into rainfall_daily.csv,
+    and compared with the gridded series where both exist (reports/chirps_vs_stations.md)."""
+    sc = cfg["rainfall"].get("station_csv")
+    folder = cfg["paths"]["raw"] / "rainfall"
+    if not sc or not all((folder / f).exists() for f in (sc.get("files") or [])) or not sc.get("files"):
+        log.info("No station CSVs found: supplementary station processing skipped.")
+        return
+    try:
+        sdaily = from_stations(cfg, districts, interim, reports, primary=False)
+    except Exception as e:
+        log.warning(f"Supplementary station processing failed ({type(e).__name__}: {e}); the primary CHIRPS series is unaffected.")
+        return
+    a = primary.rename(columns={"zone_id": "district_id"})[["district_id", "date", "rain_mm"]]
+    b = sdaily.rename(columns={"zone_id": "district_id", "rain_mm": "station_mm"})[["district_id", "date", "station_mm", "n_stations"]]
+    m = a.merge(b, on=["district_id", "date"]).dropna(subset=["rain_mm", "station_mm"])
+    lines = ["# CHIRPS v3 vs NWDP stations (supplementary check)\n",
+             "Daily district means on days where BOTH exist. Stations are sparse and manual; this is a plausibility check of the gridded "
+             "series, not a calibration. The gridded product stays the primary rainfall source.\n"]
+    if len(m) < 30:
+        lines.append(f"Only {len(m)} overlapping district-days: no comparison possible.")
+    else:
+        rows = []
+        for did, g in m.groupby("district_id"):
+            if len(g) >= 30:
+                rows.append({"district_id": did, "n_days": len(g), "corr_daily": round(g["rain_mm"].corr(g["station_mm"]), 3),
+                             "mean_chirps_mm": round(g["rain_mm"].mean(), 2), "mean_station_mm": round(g["station_mm"].mean(), 2),
+                             "bias_ratio_chirps_over_station": round(g["rain_mm"].sum() / max(g["station_mm"].sum(), 1e-9), 2)})
+        t = pd.DataFrame(rows)
+        lines.append(f"Overlapping district-days: {len(m):,}; districts compared: {len(t)}.\n\n```\n{t.to_string(index=False)}\n```")
+    (reports / "chirps_vs_stations.md").write_text("\n".join(lines))
+    log.info(f"CHIRPS vs stations -> {reports/'chirps_vs_stations.md'}")
+
+
+def from_stations(cfg, districts, interim, reports, primary=True):
     sc = cfg["rainfall"]["station_csv"]
     raw, qc = ST.load_station_csvs(cfg["paths"]["raw"] / "rainfall", sc.get("files"), sc.get("columns"), sc.get("missing_values"),
                                    sc.get("date_dayfirst", True), int(sc.get("date_shift_days", 0)), float(sc.get("max_daily_mm", 1000)),
@@ -170,6 +227,9 @@ def from_stations(cfg, districts, interim, reports):
           "If stations are logged only on rainy days, dry days are missing rather than 0, and window/season totals would be biased LOW. "
           "A very low coverage ratio or an implausibly low zero share is the sign.\n"]
     (reports / "rainfall_station_report.md").write_text("\n".join(map(str, L)))
+    if not primary:
+        daily.rename(columns={"district_id": "zone_id"}).to_csv(interim / "rainfall_daily_stations.csv", index=False)
+        return daily
 
     for k, v in qc["files"].items():
         if v["bad_dates"] or v["negative"] or v["non_numeric_text"]:
@@ -200,11 +260,11 @@ def main():
     if not dpath.exists():
         sys.exit("Run 01_prepare_boundaries.py first.")
     districts = gpd.read_file(dpath).to_crs("EPSG:4326")
-    if cfg["rainfall"].get("source") == "station_csv":
+    src = cfg["rainfall"].get("source", "netcdf")
+    if src == "station_csv":
         return from_stations(cfg, districts, interim, reports)
 
-    src = cfg["rainfall"].get("source", "netcdf")
-    allr, info = from_netcdf(cfg, districts) if src == "netcdf" else from_district_csv(cfg, districts)
+    allr, info = from_netcdf(cfg, districts) if src in ("netcdf", "chirps_v3") else from_district_csv(cfg, districts)
 
     # ---- duplicates across files: same zone+date, different value ----------------------------------------------
     g = allr.dropna(subset=["rain_mm"]).groupby(["zone_id", "date"])["rain_mm"]
@@ -241,9 +301,12 @@ def main():
                                    or info.get("UPSTREAM", {}).get("status", "ok") != "ok"):
         out = out[out["zone_id"] != "UPSTREAM"]
         log.warning("UPSTREAM series dropped (grid does not cover the whole upstream zone) -> no upstream_* features.")
+    out["source"] = "chirps_v3" if src == "chirps_v3" else src
     out.to_csv(interim / "rainfall_daily.csv", index=False)
     log.info("Rainfall QC:\n" + qc.to_string())
     log.info(f"Saved -> {interim/'rainfall_daily.csv'}")
+    if src == "chirps_v3" and cfg["rainfall"].get("supplementary_stations", True):
+        supplementary_stations(cfg, districts, interim, reports, out)
 
 
 if __name__ == "__main__":

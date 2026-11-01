@@ -76,7 +76,10 @@ def test_thresholds_use_training_years_only(proj):
 
 def test_season_features_use_label_period_and_baseline_ends_before_labels(proj):
     root, _, _ = proj
-    tab = pd.read_csv(root / "data" / "processed" / "model_table_seasonal.csv", parse_dates=["season_start", "season_end"])
+    full = pd.read_csv(root / "data" / "processed" / "model_table_seasonal.csv", parse_dates=["season_start", "season_end"])
+    flagged = full[full["rainfall_status"] != "ok"]
+    assert flagged["season_total_mm"].isna().all() and flagged["rainfall_status"].str.len().gt(3).all()      # kept, flagged, features unknown
+    tab = full[full["rainfall_status"] == "ok"]
     assert (tab["season_start"].dt.strftime("%m-%d") == "05-01").all() and (tab["season_end"].dt.strftime("%m-%d") == "10-31").all()
     assert (tab["season_basis"] == "label_period").all() and (tab["baseline_years_used"] >= 20).all()
     assert tab["season_obs_fraction"].min() >= 0.8 and tab["season_total_mm"].gt(0).all()

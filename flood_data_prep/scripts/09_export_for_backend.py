@@ -25,6 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import yaml
 
@@ -79,8 +80,13 @@ def export_seasonal(cfg, emap, args):
     rain = pd.read_csv(interim / "rainfall_daily.csv", parse_dates=["date"]).rename(columns={"zone_id": "district_id"})
     start = pd.Timestamp(cfg["project"]["start_date"]) - pd.Timedelta(days=60)
     rain = rain[(rain["date"] >= start) & rain["district_id"].isin(id_map)]
+    n_missing = int(rain["rain_mm"].isna().sum())
+    rain = rain.dropna(subset=["rain_mm"])            # a missing day is ABSENT from the export (the backend reads it as missing, never as 0)
+    if n_missing:
+        notes.append(f"{n_missing} district-days without rainfall were left out of rainfall_daily.csv (missing, not zero).")
+    ns = rain["n_stations"] if "n_stations" in rain else pd.Series(np.nan, index=rain.index)      # gridded rainfall has no station count
     r_out = pd.DataFrame({"district_id": rain["district_id"].map(id_map), "date": rain["date"].dt.strftime("%Y-%m-%d"),
-                          "rainfall_mm": rain["rain_mm"].round(2), "n_stations": rain["n_stations"].astype(int)})
+                          "rainfall_mm": rain["rain_mm"].round(2), "n_stations": ns.astype("Int64")})
     r_out.sort_values(["district_id", "date"]).to_csv(out_dir / "rainfall_daily.csv", index=False)
 
     # climatology.csv / normal season / season_features ------------------------------------------------------
@@ -93,7 +99,8 @@ def export_seasonal(cfg, emap, args):
     tab = pd.read_csv(proc / "model_table_seasonal.csv")
     names = {i: n.lower() for i, n in enumerate(cfg["labels"]["class_names"])}
     from floodprep.climatology import SEASON_FEATURES
-    sf = tab[["district_id", "year", "split", "metric_value", "risk_class"] + SEASON_FEATURES].copy()
+    sf = tab[["district_id", "year", "split", "metric_value", "risk_class"] + SEASON_FEATURES
+             + (["rainfall_status"] if "rainfall_status" in tab else [])].copy()      # unavailable rows stay, features empty, status says why
     sf["district_id"] = sf["district_id"].map(id_map)
     sf["risk_class"] = sf["risk_class"].map(names)
     sf.to_csv(out_dir / "season_features.csv", index=False)

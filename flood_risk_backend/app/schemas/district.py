@@ -11,7 +11,7 @@ class DistrictOut(BaseModel):
     state: str = Field(..., examples=["Assam"])
     geometry: dict[str, Any] = Field(
         ...,
-        description="GeoJSON Polygon for the district boundary",
+        description="GeoJSON Polygon or MultiPolygon (EPSG:4326, lon/lat) for the district boundary",
         examples=[
             {
                 "type": "Polygon",
@@ -19,8 +19,8 @@ class DistrictOut(BaseModel):
             }
         ],
     )
-    mean_elevation_m: float = Field(..., examples=[110.0])
-    elevation_std_m: float = Field(..., examples=[14.2])
-    mean_slope_deg: float = Field(..., examples=[2.1])
-    low_lying_frac: float = Field(..., examples=[0.35])
+    mean_elevation_m: Optional[float] = Field(None, examples=[110.0])
+    elevation_std_m: Optional[float] = Field(None, examples=[14.2])
+    mean_slope_deg: Optional[float] = Field(None, examples=[2.1])
+    low_lying_frac: Optional[float] = Field(None, examples=[0.35])
     pop_density_km2: Optional[float] = Field(None, examples=[420.0])

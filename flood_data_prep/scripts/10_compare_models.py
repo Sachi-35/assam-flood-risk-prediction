@@ -172,7 +172,13 @@ def main():
     if cfg["project"].get("mode", "seasonal") != "seasonal":
         return log.info("project.mode is not 'seasonal': nothing to compare (this step needs annual labels).")
     seed, nboot = cfg["compare"]["random_state"], cfg["compare"]["bootstrap"]
-    df = pd.read_csv(cfg["paths"]["processed"] / "model_table_seasonal.csv").reset_index(drop=True)
+    df = pd.read_csv(cfg["paths"]["processed"] / "model_table_seasonal.csv")
+    n_all = len(df)
+    df = df[df["rainfall_status"].eq("ok")] if "rainfall_status" in df.columns else df
+    df = df.dropna(subset=SEASON_FEATURES).reset_index(drop=True)
+    if len(df) < n_all:
+        log.warning(f"{n_all - len(df)} of {n_all} district-years have unavailable rainfall features and are EXCLUDED from the comparison "
+                    "(listed with reasons in reports/season_rows_dropped.csv).")
     q = cfg["labels"]["annual"]["quantiles"]
     static = [c for c in STATIC_FEATURES if c in df.columns and df[c].notna().all()]
     dropped = [c for c in STATIC_FEATURES if c in df.columns and c not in static]

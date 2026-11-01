@@ -50,6 +50,12 @@ def main_seasonal(cfg):
     out = [f"# Data quality report (seasonal mode)\n\nRows (district-years): **{len(df)}** | districts: **{df.district_id.nunique()}** | "
            f"years: {sorted(df.year.unique())}\n"]
     warnings = []
+    if "rainfall_status" in df.columns:
+        bad = df[df["rainfall_status"] != "ok"]
+        out.append(f"## 0. Rainfall availability\n\n{len(df) - len(bad)} of {len(df)} district-years have rainfall features; "
+                   f"{len(bad)} are flagged unavailable: {bad['rainfall_status'].value_counts().to_dict()}\n")
+        if len(bad):
+            warnings.append(f"{len(bad)} of {len(df)} labelled district-years have NO rainfall features (unknown, not zero)")
     if len(df) < 100:
         warnings.append(f"Only {len(df)} labelled district-years: all metrics will have wide intervals.")
     feats = [c for c in SEASON_FEATURES + STATIC_FEATURES if c in df.columns]

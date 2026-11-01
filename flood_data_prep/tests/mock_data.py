@@ -93,6 +93,7 @@ def build(root: Path, seed: int = 0) -> Path:
     cfg["project_root"] = str(root)
     cfg["project"].update(start_date="2019-05-01", end_date="2019-10-31", mode="daily")
     cfg["rainfall"]["source"] = "netcdf"
+    cfg["rainfall"]["upstream"]["enabled"] = True       # the daily mock tests the upstream-zone logic
     cfg["labels"]["input_dir"] = str(lab_dir)
     cfg["paths"] = {k: str(root / v) for k, v in cfg["paths"].items()}
     cfg["districts"]["boundary_file"] = str(raw / "boundaries" / "assam_districts.geojson")
@@ -221,6 +222,7 @@ def build_seasonal(root: Path, seed: int = 0, last_year: int = 2024) -> Path:
     cfg["paths"] = {k: str(root / v) for k, v in cfg["paths"].items()}
     cfg["districts"]["boundary_file"] = str(raw / "boundaries" / "assam_districts.geojson")
     cfg["labels"]["input_dir"] = str(lab_dir)
+    cfg["rainfall"]["source"] = "station_csv"           # this mock exercises the station path; test_chirps_v3.py switches it to chirps_v3
     cfg["hazard"]["min_baseline_values"] = 100
     cfg["hazard"]["baseline_years"] = [1991, 2018]      # the mock has 1991+; the real data only dense from ~2015 (see config.yaml)
     cfg["hazard"]["min_normal_years"] = 10

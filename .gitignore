@@ -13,3 +13,16 @@ __pycache__/
 # IDE
 .vscode/
 .idea/
+
+# Frontend dependencies and build output
+**/node_modules/
+**/dist/
+
+# Generated and downloaded flood datasets
+flood_data_prep/data/raw/*
+flood_data_prep/data/interim/*
+flood_data_prep/data/processed/*
+flood_data_prep/data/backend_export/*
+
+# Generated reports
+flood_data_prep/reports/

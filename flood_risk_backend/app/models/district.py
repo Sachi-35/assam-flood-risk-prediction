@@ -12,9 +12,10 @@ class District(Base):
     # GeoJSON string (no PostGIS: ~33 static polygons served whole to the frontend).
     geometry = Column(Text, nullable=False)
 
-    # Terrain statistics from the Copernicus GLO-30 DEM (a surface model: canopy/buildings included)
-    mean_elevation_m = Column(Float, nullable=False)
-    elevation_std_m = Column(Float, nullable=False)
-    mean_slope_deg = Column(Float, nullable=False)
-    low_lying_frac = Column(Float, nullable=False)
+    # Terrain statistics from the Copernicus GLO-30 DEM (a surface model: canopy/buildings included).
+    # Nullable: a district stays in the API (with null terrain) even when the DEM step produced no value for it.
+    mean_elevation_m = Column(Float, nullable=True)
+    elevation_std_m = Column(Float, nullable=True)
+    mean_slope_deg = Column(Float, nullable=True)
+    low_lying_frac = Column(Float, nullable=True)
     pop_density_km2 = Column(Float, nullable=True)        # empty when no population raster was provided

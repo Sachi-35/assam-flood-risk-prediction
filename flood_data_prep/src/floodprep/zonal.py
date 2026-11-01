@@ -95,12 +95,14 @@ def zone_weights(lons: np.ndarray, lats: np.ndarray, geom):
     return np.array(rows), np.array(cols), np.array(w), float(min(cov, 1.0))
 
 
-def zonal_mean(ds: xr.Dataset, zones: dict, variable: str = "auto", units: str = "auto"):
+def zonal_mean(ds: xr.Dataset, zones: dict, variable: str = "auto", units: str = "auto", min_valid_weight: float = 0.0):
     """Daily area-weighted mean of the rainfall variable for each zone.
 
     zones: {zone_id: shapely geometry (lon/lat, EPSG:4326)}
     Returns (long DataFrame [date, zone_id, rain_mm], {zone_id: {"n_cells", "coverage", "status"}}, notes dict).
     status: ok | partial (grid covers < 90 % of the zone) | outside (no overlap; series is all NaN)
+    min_valid_weight: a day's value is NaN unless the non-missing cells carry at least this share of the zone's area weight
+    (0 = any valid cell is enough, the original behaviour). Missing is never averaged as zero.
     """
     var = detect_variable(ds, variable)
     lat_n, lon_n, t_n = _find(ds, LAT_NAMES, "latitude"), _find(ds, LON_NAMES, "longitude"), _find(ds, TIME_NAMES, "time")
@@ -130,7 +132,7 @@ def zonal_mean(ds: xr.Dataset, zones: dict, variable: str = "auto", units: str =
             den = (valid * w).sum(axis=1)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", RuntimeWarning)
-                series = np.where(den > 0, num / den, np.nan)
+                series = np.where((den > 0) & (den >= min_valid_weight * w.sum()), num / np.where(den > 0, den, 1), np.nan)
             info[zid] = {"n_cells": int(len(w)), "coverage": cov, "status": "ok" if cov >= 0.9 else "partial"}
         frames.append(pd.DataFrame({"date": dates, "zone_id": zid, "rain_mm": series}))
     return pd.concat(frames, ignore_index=True), info, {"variable": var, "units": unit_note}

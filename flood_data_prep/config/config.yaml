@@ -55,10 +55,25 @@ districts:
 # Rainfall
 # ---------------------------------------------------------------------------
 rainfall:
-  # netcdf       : gridded files in data/raw/rainfall/*.nc (CHIRPS / IMD / ERA5 ...) -> area mean per district
+  # chirps_v3    : PRIMARY. CHIRPS v3.0 final daily, 0.05 deg, downloaded by scripts/02 into data/raw/rainfall/chirps_v3_<product>_<year>.nc
+  #                -> area-weighted mean per district polygon. The NWDP station CSVs are then processed only as SUPPLEMENTARY data
+  #                (reports/rainfall_station_report.md, chirps_vs_stations.md), never merged into the district rainfall series.
+  # station_csv  : station gauges as the primary source (NOT recommended with the current files: 13/33 districts, ~27 % of days observed)
+  # netcdf       : any other gridded NetCDF files (variable/units detected; no product check)
+  # district_csv : already district-level daily rainfall (e.g. Assam Water Dept / NWDP): data/raw/rainfall/*.csv
   # district_csv : already district-level daily rainfall (e.g. Assam Water Dept / NWDP): data/raw/rainfall/*.csv
   #                with columns district,date,rain_mm   (see docs/DATA_SOURCES.md)
-  source: station_csv           # station_csv (manual gauges: Assam Water Dept / NWDP) | netcdf | district_csv
+  source: chirps_v3             # chirps_v3 | station_csv | netcdf | district_csv
+  supplementary_stations: true  # with chirps_v3: also process station_csv (separate files) and compare it with CHIRPS
+  chirps_v3:
+    base_url: https://data.chc.ucsb.edu/products/CHIRPS/v3.0/daily     # official CHC archive; a LOCAL folder with the same layout also works
+    stage: final                 # only 'final' is supported (no silent use of preliminary data); there is NO fallback to CHIRPS v2
+    product: sat                 # sat (disaggregated with IMERG Late V07) | rnl (with ERA5). Both are CHIRPS v3.0 and sum to the same pentad totals.
+                                 # A DELIBERATE choice - the script never switches. See docs/DATA_SOURCES.md.
+    start_date: "1991-01-01"     # climatology reference years need this (hazard.baseline_years); use 2015-01-01 for a quick, thinner reference
+    end_date: "2023-12-31"
+    bbox: [88.0, 24.0, 97.5, 30.0]   # lon_min, lat_min, lon_max, lat_max (covers Assam with a margin)
+    file_glob: "chirps_v3_*.nc"      # the extractor only reads files labelled CHIRPS-v3.0 / mm/day / the configured product
   # ---- station_csv: files in data/raw/rainfall/. One row per station-day. Column names are matched ignoring case/spaces/punctuation.
   station_csv:
     files: [rainfall_assam_1991_2020.csv, rainfall_assam_2021_2025.csv]      # null = every CSV in the folder
@@ -75,18 +90,18 @@ rainfall:
     min_stations_per_district_day: 1
     idw: {enabled: false, radius_km: 50, power: 2, max_stations: 4}    # OFF by default: borrowing rain from neighbouring districts is an assumption; enable only if you accept it (flagged source=idw)
   min_obs_fraction: 0.8                  # a window or season total needs this share of its days observed, otherwise it is missing
-  # Only used by scripts/02_download_rainfall.py (optional). Skip it if you already have the .nc files.
-  download_source: chirps_erddap
   bbox: [88.0, 24.0, 97.5, 30.0]
   buffer_days: 45               # rainfall needed BEFORE start_date so 30-day windows are complete on day 1
   variable: auto                # or the exact NetCDF variable name, e.g. precip / rf / tp (run scripts/00_inspect_inputs.py)
   units: auto                   # auto | mm_per_day | m_per_day  (ERA5 'tp' is metres; auto reads the NetCDF 'units' attribute)
   # Minimum share of days that must be non-missing in a district's series; below this the step stops.
   min_coverage_pct: 90
+  # Gridded sources: a district-day value needs this share of the district's area weight to have valid cells, else it is MISSING (never averaged over a sliver).
+  min_valid_cell_fraction: 0.9
   # Upstream zone. ONLY used if the NetCDF grid actually covers it. If your files were clipped to Assam,
   # the zone is skipped (with a warning) instead of silently using an edge cell.
   upstream:
-    enabled: true
+    enabled: false               # needs a grid beyond Assam; unused in seasonal mode
     geometry_file: null
     bbox: [93.0, 27.0, 97.5, 29.5]
 
@@ -203,10 +218,11 @@ terrain:
 # ---------------------------------------------------------------------------
 hazard:
   windows: [3, 7, 15, 30]
-  # REFERENCE PERIOD for the climatology. The files only hold dense data from ~2015 (2001-2014 is very sparse), so 1991-2018 is NOT available.
-  # [2015, 2018] is a CANDIDATE, not a verified choice: run scripts/11_reference_period_check.py and read reports/climatology_coverage.csv.
-  # It must end before the first label year (2019) so features never see the evaluation period.
-  baseline_years: [2015, 2018]
+  # REFERENCE PERIOD for the climatology (config, not assumed). The NWDP station files were only dense from ~2015; the gridded CHIRPS v3
+  # record supports the original 1991-2018. Check reports/reference_period_check.md / climatology_coverage.csv; change it here if you disagree.
+  # Windows: 3/7/15/30 are the user-selectable dashboard windows. The ANNUAL model only uses season totals/maxima and the 7- and 30-day
+  # hazard summaries (SEASON_FEATURES); 3 and 15 days serve the dashboard hazard display only.
+  baseline_years: [1991, 2018]          # CHIRPS v3 has the full record. Must end before the first label year (2019) to avoid leakage.
   doy_halfwidth: 15                     # compare with totals ending within +-15 days of the same calendar day
   min_baseline_values: 60               # window totals needed in the +-doy_halfwidth pool of a (district, window, day-of-year)
   min_baseline_years: 3                 # ... coming from at least this many distinct years; otherwise NO threshold -> hazard unknown

@@ -109,11 +109,15 @@ def main_seasonal(cfg):
         rows.append({"district_id": r.district_id, "year": int(r.year), "season_start": a, "season_end": b, "season_basis": used,
                      "baseline_years_used": n_base, **f})
     feats = pd.DataFrame(rows)
-    pd.DataFrame(dropped, columns=["district_id", "year", "reason"]).to_csv(reports / "season_rows_dropped.csv", index=False)
+    unavailable = pd.DataFrame(dropped, columns=["district_id", "year", "reason"])
+    unavailable.to_csv(reports / "season_rows_dropped.csv", index=False)         # name kept for compatibility: these rows are FLAGGED, not removed
     if dropped:
-        log.warning(f"{len(dropped)} labelled district-years dropped (insufficient rainfall data): see reports/season_rows_dropped.csv")
+        log.warning(f"{len(dropped)} of {len(labels)} labelled district-years have UNAVAILABLE rainfall features (kept in the table, flagged "
+                    f"`rainfall_status`, features unknown; model steps exclude them and say so): see reports/season_rows_dropped.csv")
     if feats.empty:
-        sys.exit("No district-year has enough rainfall coverage in its season. Check reports/rainfall_station_report.md and season_rows_dropped.csv.")
+        log.error("No district-year has enough rainfall coverage in its season: every season feature is unknown. The table is still written "
+                  "with rainfall_status explaining why; no model can be trained until the rainfall input is fixed.")
+        feats = pd.DataFrame(columns=["district_id", "year"] + C.SEASON_FEATURES)
 
     # ---- 'normal season' per district (for the vulnerability component): median season features over baseline years ----
     spans = labels.dropna(subset=["period_start", "period_end"])
@@ -144,7 +148,10 @@ def main_seasonal(cfg):
     keep_static = ["district_id", "area_km2"] + [c for c in C.STATIC_FEATURES + ["pop_total"] if c in static.columns]
     tab = labels[["district_id", "year", "split", "period_start", "period_end", "affected_population", "metric_value", "risk_class",
                   "risk_label", "label_status", "n_source_rows"] + (["quality_flags"] if "quality_flags" in labels else [])]
-    tab = tab.merge(feats, on=["district_id", "year"], how="inner").merge(static[keep_static], on="district_id", how="left")
+    tab = tab.merge(feats, on=["district_id", "year"], how="left").merge(static[keep_static], on="district_id", how="left")
+    reasons = {(r.district_id, int(r.year)): r.reason for r in unavailable.itertuples()}
+    tab["rainfall_status"] = [("ok" if pd.notna(f) else reasons.get((d, int(y)), "season features unavailable"))
+                              for d, y, f in zip(tab["district_id"], tab["year"], tab["season_total_mm"] if "season_total_mm" in tab else [np.nan] * len(tab))]
     tab = tab.merge(districts[["district_id", "district_name"]], on="district_id", how="left")
     tab["risk_class"] = tab["risk_class"].astype(int)
     tab = tab.sort_values(["year", "district_id"]).reset_index(drop=True)

@@ -1,3 +1,15 @@
+> **Rainfall source (current): CHIRPS v3.0, not v2.0 and not the NWDP gauges.** The NWDP station CSVs cover only 13 of 33 districts by
+> coordinates and ~27 % of days, with no recorded zeros, so they cannot give valid seasonal totals. Primary rainfall is now
+> **CHIRPS v3.0 final daily, 0.05 deg, mm/day** (Climate Hazards Center; archive `https://data.chc.ucsb.edu/products/CHIRPS/v3.0/daily/final/<sat|rnl>/<year>/`, one
+> GeoTIFF/COG per day; documented at chc.ucsb.edu/data/chirps3 and in the Earth Engine catalogue entries UCSB-CHC/CHIRPS/V3/DAILY_SAT and DAILY_RNL, doi:10.15780/G2JQ0P).
+> `scripts/02_download_rainfall.py` reads only the Assam window of each day's file. `sat` = pentad totals split into days with IMERG Late V07;
+> `rnl` = split with ERA5 (same pentad totals). You choose in `rainfall.chirps_v3.product`; nothing is switched silently and CHIRPS v2 / the old ERDDAP route is gone.
+> **Not verified by me:** I could not reach the CHC server from my environment, so the exact daily file names are discovered from the directory listing at run time
+> (or two conventional names are tried and logged), and the download was tested only against a local mock archive with the same layout.
+> Daily dates are labels from the disaggregation, not station observation windows. NWDP stations are kept as supplementary data
+> (`reports/rainfall_station_report.md`, `chirps_vs_stations.md`) and are never merged into the district series.
+> The Tier-1 row 2 below is the original, now superseded, shopping list.
+
 # What data to get, and where
 
 > **Status update (your collection):** boundaries (33 districts), NetCDF rainfall, flood-impact labels (PDF-derived CSVs),

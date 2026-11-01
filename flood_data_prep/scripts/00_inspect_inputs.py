@@ -59,7 +59,8 @@ def rainfall(cfg):
                 da = ds[var]
                 sc, note = unit_scale(da)
                 vals = da.isel({t_n: slice(0, min(len(t), 60))}).values.astype("float64")
-                print(f"- {f.name}: var='{var}' dims={dict(da.sizes)} units='{da.attrs.get('units')}' -> {note}; "
+                print(f"- {f.name}: product={ds.attrs.get('product')} version={ds.attrs.get('version')} stage={ds.attrs.get('stage')} "
+                      f"daily_product={ds.attrs.get('daily_product')} | var='{var}' dims={dict(da.sizes)} units='{da.attrs.get('units')}' -> {note}; "
                       f"time {t.min().date()}..{t.max().date()} ({len(t)} steps, step={pd.Series(t).diff().mode().iloc[0] if len(t) > 1 else 'n/a'}); "
                       f"lon {float(ds[lon_n].min()):.2f}..{float(ds[lon_n].max()):.2f} lat {float(ds[lat_n].min()):.2f}..{float(ds[lat_n].max()):.2f}; "
                       f"first-60-steps: min={np.nanmin(vals):.2f} max={np.nanmax(vals):.2f} nan%={100*np.isnan(vals).mean():.1f}")
@@ -73,7 +74,7 @@ def rainfall(cfg):
     for f in csv[:5]:
         df = pd.read_csv(f, nrows=5, dtype=str)
         print(f"- {f.name}: columns={list(df.columns)}\n{df.to_string(index=False)}")
-    if cfg["rainfall"].get("source") == "station_csv" and csv:
+    if cfg["rainfall"].get("source") in ("station_csv", "chirps_v3") and csv and cfg["rainfall"].get("station_csv", {}).get("files"):
         from floodprep import stations as ST
         sc = cfg["rainfall"]["station_csv"]
         try:
