@@ -5,6 +5,7 @@
 import type {
   Assessment,
   District,
+  RecentRainfallResponse,
   FloodImpactRecord,
   FloodImpactResult,
   ModelMetadata,
@@ -108,6 +109,8 @@ export const api = {
       throw e;
     }
   },
+  recentRainfall: (limit = 10000) =>
+    request<RecentRainfallResponse>("/rainfall/recent", { query: { limit } }),
   scenario: (body: ScenarioRequest) => request<Assessment>("/assess", { method: "POST", body }),
   /** 503 (model not trained) is a normal state, returned as {kind:"untrained"}. Other errors throw. */
   async modelMetadata(): Promise<ModelMetadataResult> {

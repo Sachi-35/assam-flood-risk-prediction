@@ -191,3 +191,44 @@ tr.selected { background: #e3f1f3; }
 
 /* scenario */
 .scenario-warning { border: 2px solid #8a5a00; background: #fff4dc; border-radius: var(--radius); padding: 0.7rem 0.9rem; margin: 0.8rem 0; }
+
+
+/* Recent IMD observed rainfall */
+.rainfall-controls { margin: 0.8rem 0; }
+.rainfall-coverage { margin: 0.7rem 0; }
+.rainfall-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.7rem;
+  margin: 0.8rem 0 1.2rem;
+}
+.rainfall-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.8rem 1rem;
+}
+.rainfall-stats span, .rainfall-stats small {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.rainfall-stats strong {
+  font-size: 1.45rem;
+  font-variant-numeric: tabular-nums;
+}
+.rainfall-chart {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.8rem 0.4rem;
+  margin: 0.5rem 0 1.2rem;
+}
+.rainfall-table {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.5rem 0.7rem;
+}

@@ -157,3 +157,26 @@ export interface FloodImpactRecord {
 export type FloodImpactResult =
   | { kind: "ok"; records: FloodImpactRecord[] }
   | { kind: "unavailable"; detail: string };
+
+
+export interface RecentRainfallObservation {
+  district_id: number;
+  district: string;
+  date: string;
+  rainfall_mm: number;
+  source: string;
+}
+
+export interface RecentRainfallResponse {
+  dataset: string;
+  total_matching: number;
+  returned: number;
+  limit: number;
+  filters: {
+    district_id: number | null;
+    start: string | null;
+    end: string | null;
+  };
+  observations: RecentRainfallObservation[];
+  disclaimer: string;
+}

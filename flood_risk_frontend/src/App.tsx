@@ -5,6 +5,7 @@ import { AboutPage } from "./pages/AboutPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { MapPage } from "./pages/MapPage";
 import { ScenarioPage } from "./pages/ScenarioPage";
+import { RecentRainfallPage } from "./pages/RecentRainfallPage";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
         <nav aria-label="Main">
           <NavLink to="/" end>Map</NavLink>
           <NavLink to="/history">History</NavLink>
+          <NavLink to="/recent-rainfall">Recent rainfall</NavLink>
           <NavLink to="/scenario">Rainfall scenario</NavLink>
           <NavLink to="/about">About &amp; method</NavLink>
         </nav>
@@ -32,6 +34,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<MapPage />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/recent-rainfall" element={<RecentRainfallPage />} />
           <Route path="/scenario" element={<ScenarioPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="*" element={<div className="page"><h1>Page not found</h1><NavLink to="/">Back to the map</NavLink></div>} />
