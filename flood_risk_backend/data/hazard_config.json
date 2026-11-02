@@ -1,0 +1,5 @@
+{
+  "windows": [3, 7, 15, 30],
+  "level_quantiles": [0.75, 0.90, 0.97],
+  "min_obs_fraction": 0.80
+}
