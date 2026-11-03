@@ -10,6 +10,7 @@ import type {
   FloodImpactResult,
   ModelMetadata,
   ModelMetadataResult,
+  MLExperimentSummary,
   ScenarioRequest,
   WindowsResponse,
 } from "./types";
@@ -85,6 +86,7 @@ async function request<T>(path: string, opts: { query?: Query; method?: "GET" | 
 
 export const api = {
   health: () => request<{ status: string }>("/health"),
+  mlExperiment: () => request<MLExperimentSummary>("/ml-experiment/summary"),
   windows: () => request<WindowsResponse>("/windows"),
   districts: () => request<District[]>("/districts"),
   /** 404 when nothing is computed for that window/date. Omit `date` for the latest. */

@@ -180,3 +180,53 @@ export interface RecentRainfallResponse {
   observations: RecentRainfallObservation[];
   disclaimer: string;
 }
+
+
+export interface MLExperimentModel {
+  model: string;
+  features: string;
+  accuracy: number;
+  balanced_accuracy: number;
+  macro_f1: number;
+  macro_f1_ci95: [number, number] | null;
+  ordinal_mae: number;
+}
+
+export interface MLExperimentPrediction {
+  district_id: string;
+  year: number;
+  actual_class: string;
+  logreg_prediction: string;
+  random_forest_prediction: string;
+}
+
+export interface MLExperimentSummary {
+  status: string;
+  n_rows: number;
+  n_districts: number;
+  attrition: {
+    labelled_district_years: number;
+    after_excluding_2019_snapshots: number;
+    with_any_rainfall_station: number;
+    with_at_least_30_rain_days: number;
+    rows_missing_static: number;
+  };
+  class_counts: Record<string, number>;
+  models: MLExperimentModel[];
+  permutation_test: {
+    static_plus_rain: {
+      observed_macro_f1: number;
+      perm_mean: number;
+      perm_p95: number;
+      p_value: number;
+    };
+    rain_only: {
+      observed_macro_f1: number;
+      perm_mean: number;
+      perm_p95: number;
+      p_value: number;
+    };
+  };
+  predictions: MLExperimentPrediction[];
+  limitations: string[];
+}

@@ -31,8 +31,11 @@ def methodology(db: Session = Depends(get_db)):
         },
         "components": {
             "hazard": "rule_based: number of baseline quantiles strictly exceeded (0 Low .. 3 Severe); unknown when the window has too little rainfall data or no baseline",
-            "vulnerability": ("ml_estimate (RF + SHAP) only if leave-one-year-out CV beats the baselines in scripts/train_model.py; "
-                              f"otherwise empirical_history = the district's own mean impact class over its known years (at least {MIN_HISTORY_YEARS})"),
+            "vulnerability": (
+                "empirical_history = the district historical mean impact class; "
+                f"at least {MIN_HISTORY_YEARS} known years are required. "
+                "ML feasibility results are separate and are not integrated"
+            ),
             "combined": "rule_based: vulnerability class index + hazard level -> 0-1 Low, 2-3 Moderate, 4-5 High, 6 Severe; unknown if either part is unknown; not validated against observed floods",
         },
         "missing_data_rules": [

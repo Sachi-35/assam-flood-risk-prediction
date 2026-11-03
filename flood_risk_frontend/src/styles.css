@@ -232,3 +232,101 @@ tr.selected { background: #e3f1f3; }
   box-shadow: var(--shadow);
   padding: 0.5rem 0.7rem;
 }
+
+
+/* About page refinements */
+.prose {
+  padding-bottom: 1.5rem;
+}
+
+.prose > h2 {
+  margin-top: 1.7rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.prose > .component-card {
+  margin: 0.8rem 0;
+}
+
+.prose > .component-card p:last-child {
+  margin-bottom: 0.1rem;
+}
+
+.prose > ul {
+  padding-left: 1.4rem;
+}
+
+.prose > ul li {
+  margin: 0.45rem 0;
+}
+
+.prose > .disclaimer {
+  margin: 1rem 0 1.3rem;
+}
+
+
+/* ML experiment page */
+.ml-page { padding-bottom: 2rem; }
+.ml-status {
+  background: #fff4dc;
+  border-left: 4px solid #e0b24d;
+  border-radius: 0 8px 8px 0;
+  padding: 0.75rem 1rem;
+  margin: 0.8rem 0 1rem;
+}
+.ml-status p { margin: 0.2rem 0 0; font-size: 0.9rem; }
+.ml-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.7rem;
+  margin: 1rem 0;
+}
+.ml-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.8rem 1rem;
+}
+.ml-stats span, .ml-stats small { color: var(--muted); font-size: 0.82rem; }
+.ml-stats strong { font-size: 1.7rem; font-variant-numeric: tabular-nums; }
+.ml-section {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.9rem 1rem;
+  margin: 1rem 0;
+}
+.ml-section h2 { margin-top: 0.2rem; }
+.ml-section h3 { margin-top: 1rem; }
+.ml-table { overflow-x: auto; margin: 0.7rem 0; }
+.ml-table table { min-width: 760px; font-variant-numeric: tabular-nums; }
+.ml-table th { white-space: nowrap; background: #f3f6f8; }
+.ml-table td { white-space: nowrap; }
+.ml-class-counts {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+.ml-class-counts li { display: flex; gap: 0.45rem; align-items: center; }
+.ml-class {
+  display: inline-block;
+  border-radius: 5px;
+  padding: 0.12rem 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border: 1px solid currentColor;
+}
+.ml-low { color: #24633d; background: #e7f3e9; }
+.ml-moderate { color: #805900; background: #fff3cf; }
+.ml-high { color: #9a4614; background: #ffeadc; }
+.ml-severe { color: #922d32; background: #fde7e7; }
+.ml-limitations { padding-left: 1.3rem; }
+.ml-limitations li { margin: 0.35rem 0; }
+.ml-samples table { min-width: 650px; }
