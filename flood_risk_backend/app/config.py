@@ -42,6 +42,13 @@ class Settings:
         "CORS_ORIGINS", "http://localhost:3000,http://localhost:5173"
     ).split(",")
 
+    # --- Vulnerability method ---
+    # Empirical district history is the main method. The experimental ML model is used for vulnerability ONLY if this is "true".
+    ALLOW_ML_VULNERABILITY: bool = os.getenv("ALLOW_ML_VULNERABILITY", "false").strip().lower() in ("1", "true", "yes")
+
+    # --- Logging ---
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").strip().upper()
+
     # --- Misc ---
     APP_NAME: str = "Localized Flood Risk Assessment API"
     TOP_N_SHAP_FEATURES: int = int(os.getenv("TOP_N_SHAP_FEATURES", "5"))

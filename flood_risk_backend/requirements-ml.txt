@@ -1,0 +1,7 @@
+# OPTIONAL, EXPERIMENTAL ML dependencies. NOT needed to run the API, the main assessments or the test suite.
+# Needed only for: scripts/train_model.py (not used by the main risk map) and ml/scripts/evaluate_models.py (the feasibility experiment).
+-r requirements.txt
+scikit-learn>=1.4
+scipy>=1.11
+xgboost>=2.0         # only for train_model.py --model xgb and the XGBoost rows of the experiment
+shap>=0.45           # only for train_model.py

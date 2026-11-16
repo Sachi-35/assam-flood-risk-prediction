@@ -1,9 +1,15 @@
-"""Computes vulnerability per district, then the hazard/combined assessment rows for every district, date and window in a range.
+"""*** DESTRUCTIVE: prefer scripts/assess_safe.py (dry-run by default, transactional upsert). ***
+This script DELETES ALL rows of `vulnerabilities` and `risk_assessments` before recomputing and commits per district, so a failure
+part-way leaves those tables empty or only partly rebuilt. It is kept for reference/reproducibility; its calculations are unchanged (the only code change is that the ML route now needs ALLOW_ML_VULNERABILITY=true).
+NEVER run it against a real database without a verified backup (python scripts/db_snapshot.py backup --db <file>).
+
+Computes vulnerability per district, then the hazard/combined assessment rows for every district, date and window in a range.
 
 Run after seed_db.py (train_model.py is optional).
 
 Vulnerability (one value per district, seasonal):
-  1. ml_estimate       only if train_model.py found that the model beats the baselines AND the district has normal-season features;
+  1. ml_estimate       only if ALLOW_ML_VULNERABILITY=true (default false) AND train_model.py found that the model beats the baselines AND
+                       the district has normal-season features;
   2. empirical_history otherwise: the district's own mean impact class over its KNOWN years in flood_labels (needs >= 2 known years);
   3. none              (vulnerability_unavailable) when neither is possible. Never a default class.
 
@@ -38,7 +44,8 @@ DEFAULT_MIN_OBS_FRACTION = 0.8      # used only when hazard_config.json was not 
 
 def compute_vulnerabilities(db):
     db.query(Vulnerability).delete()
-    meta, bundle = read_metadata(), get_model_bundle()
+    meta = read_metadata()
+    bundle = get_model_bundle() if settings.ALLOW_ML_VULNERABILITY else None      # ML only when ALLOW_ML_VULNERABILITY=true (default false)
     src = (meta or {}).get("vulnerability_source")
     labels = {}
     for r in db.query(FloodLabel).all():

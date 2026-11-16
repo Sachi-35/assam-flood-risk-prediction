@@ -84,13 +84,15 @@ function MapView({ windows, meaning, districts }: { windows: number[]; meaning: 
   const loading = datesState.status === "loading" || assessState.status === "loading";
   const noAssessments = datesState.status === "ok" && available.length === 0;
   const periodLabel =
-    windowDays === null
-      ? "None offered by the backend"
-      : effectiveDate
-        ? `Last ${windowDays} days ending ${formatDate(effectiveDate)}`
-        : loading
-          ? "Loading…"
-          : "No stored assessments";
+    mode !== "vulnerability"
+      ? "Illustrative demo values · not tied to the selected date or rainfall window"
+      : windowDays === null
+        ? "None offered by the backend"
+        : effectiveDate
+          ? `Last ${windowDays} days ending ${formatDate(effectiveDate)}`
+          : loading
+            ? "Loading…"
+            : "No stored assessments";
   const select = (id: number) => update({ district: String(id) });
 
   return (
@@ -192,6 +194,11 @@ function MapView({ windows, meaning, districts }: { windows: number[]; meaning: 
               </div>
             )}
           </div>
+          {mode !== "vulnerability" && (
+            <p className="demo-data-note" role="note">
+              Illustrative rainfall demo · synthetic values, not observed measurements. Combined colours use these demo hazard classes with the available historical vulnerability classes.
+            </p>
+          )}
           <Legend mode={mode} />
           {geo.skipped.length > 0 && (
             <div className="state state-error" role="alert">

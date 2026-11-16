@@ -20,7 +20,7 @@ export default function App() {
           <span className="brand-mark" aria-hidden="true">≈</span>
           <div>
             <strong>Assam Flood Risk</strong>
-            <small>Seasonal district-level assessment · academic prototype</small>
+            <small>Seasonal District-Level Assessment · Academic Prototype</small>
           </div>
         </div>
         <nav aria-label="Main">

@@ -1,0 +1,4 @@
+# DEVELOPMENT / TEST dependencies: install this to run the test suite  ->  pip install -r requirements-dev.txt
+-r requirements.txt
+pytest>=8.0
+httpx>=0.27          # required by fastapi.testclient.TestClient

@@ -1,7 +1,8 @@
 """Read-only descriptions of how the numbers are made and how much data stands behind them. Not used for any computation."""
+import logging
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -12,12 +13,22 @@ from app.services.labels import MIN_HISTORY_YEARS, YEAR_NOTES
 from app.services.model_loader import read_metadata
 
 router = APIRouter(tags=["info"])
+log = logging.getLogger("flood_api")
+
+
+def _safe_metadata() -> dict | None:
+    """Model metadata, or None when absent OR unreadable (an unreadable file is logged, never allowed to break /methodology)."""
+    try:
+        return read_metadata()
+    except (OSError, ValueError) as e:
+        log.warning("model metadata file is unreadable (%s): treating the model as not available", e.__class__.__name__)
+        return None
 
 
 @router.get("/methodology")
 def methodology(db: Session = Depends(get_db)):
     """What is assessed, over which period, how components are combined, and which data are in the database right now."""
-    meta = read_metadata()
+    meta = _safe_metadata()
     n_dist = db.query(func.count(District.id)).scalar()
     n_rain = db.query(func.count(func.distinct(RainfallDaily.district_id))).scalar()
     n_lab = db.query(func.count(FloodLabel.id)).scalar()
@@ -61,7 +72,7 @@ def rainfall_coverage(db: Session = Depends(get_db)):
         RainfallDaily.district_id, func.min(RainfallDaily.date), func.max(RainfallDaily.date), func.count(RainfallDaily.id),
         func.count(RainfallDaily.rainfall_mm)).group_by(RainfallDaily.district_id).all()}
     out = []
-    for d in db.query(District).order_by(District.id).all():
+    for d in db.query(District.id, District.name).order_by(District.id).all():          # id + name only (geometry is large)
         s = stats.get(d.id)
         if s is None:
             out.append({"district_id": d.id, "name": d.name, "has_rainfall": False, "first_date": None, "last_date": None,
@@ -86,6 +97,10 @@ def recent_imd_rainfall(
     db: Session = Depends(get_db),
 ):
     """Recent observed IMD daily rainfall, kept separate from historical station data."""
+    if start is not None and end is not None and start > end:
+        raise HTTPException(422, f"start ({start}) must be on or before end ({end}).")
+    if district_id is not None and db.query(District.id).filter(District.id == district_id).first() is None:
+        raise HTTPException(404, f"Unknown district: {district_id}")
     query = db.query(RainfallIMDRecent, District.name).join(
         District, District.id == RainfallIMDRecent.district_id
     )

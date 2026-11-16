@@ -53,7 +53,7 @@ SCENARIO_DISCLAIMER = ("HYPOTHETICAL SCENARIO, not an observation and not a fore
 
 class ScenarioIn(BaseModel):
     district_id: int
-    window_days: int
+    window_days: int = Field(..., ge=1, le=366, description="window length in days (must be one of GET /windows)")
     window_end_date: date = Field(..., description="calendar day the window ends on (sets the seasonal baseline)")
     window_rain_mm: float = Field(..., ge=0, le=2000, description="total rainfall over the window, mm")
 

@@ -330,3 +330,10 @@ tr.selected { background: #e3f1f3; }
 .ml-limitations { padding-left: 1.3rem; }
 .ml-limitations li { margin: 0.35rem 0; }
 .ml-samples table { min-width: 650px; }
+
+
+.demo-data-note {
+  margin: 0.5rem 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
