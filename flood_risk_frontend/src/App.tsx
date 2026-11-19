@@ -6,6 +6,7 @@ import { HistoryPage } from "./pages/HistoryPage";
 import { MapPage } from "./pages/MapPage";
 import { ScenarioPage } from "./pages/ScenarioPage";
 import { RecentRainfallPage } from "./pages/RecentRainfallPage";
+import { RainfallArchivePage } from "./pages/RainfallArchivePage";
 import { MLExperimentPage } from "./pages/MLExperimentPage";
 
 export default function App() {
@@ -26,7 +27,8 @@ export default function App() {
         <nav aria-label="Main">
           <NavLink to="/" end>Map</NavLink>
           <NavLink to="/history">History</NavLink>
-          <NavLink to="/recent-rainfall">Recent Rainfall</NavLink>\n          <NavLink to="/ml-experiment">ML Experiment</NavLink>
+          <NavLink to="/recent-rainfall">Recent Rainfall</NavLink>
+          <NavLink to="/rainfall-archive">2024–26 Rainfall</NavLink>\n          <NavLink to="/ml-experiment">ML Experiment</NavLink>
           {/* <NavLink to="/scenario">Rainfall Scenario</NavLink> */}
           <NavLink to="/about">About &amp; Method</NavLink>
         </nav>
@@ -35,7 +37,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<MapPage />} />
           <Route path="/history" element={<HistoryPage />} />
-          <Route path="/recent-rainfall" element={<RecentRainfallPage />} />\n          <Route path="/ml-experiment" element={<MLExperimentPage />} />
+          <Route path="/recent-rainfall" element={<RecentRainfallPage />} />
+          <Route path="/rainfall-archive" element={<RainfallArchivePage />} />\n          <Route path="/ml-experiment" element={<MLExperimentPage />} />
           <Route path="/scenario" element={<ScenarioPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="*" element={<div className="page"><h1>Page not found</h1><NavLink to="/">Back to the map</NavLink></div>} />

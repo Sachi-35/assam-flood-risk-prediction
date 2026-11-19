@@ -167,6 +167,33 @@ export interface RecentRainfallObservation {
   source: string;
 }
 
+export interface RainfallArchiveObservation {
+  district_id: number;
+  district: string;
+  date: string;
+  rainfall_mm: number;
+  n_stations: number;
+  source: string;
+  is_estimated: boolean;
+}
+
+export interface RainfallArchiveResponse {
+  dataset: string;
+  total_matching: number;
+  returned: number;
+  limit: number;
+  actual_records: number;
+  estimated_records: number;
+  source_breakdown: Record<string, number>;
+  filters: {
+    district_id: number | null;
+    start: string | null;
+    end: string | null;
+  };
+  observations: RainfallArchiveObservation[];
+  disclaimer: string;
+}
+
 export interface RecentRainfallResponse {
   dataset: string;
   total_matching: number;
