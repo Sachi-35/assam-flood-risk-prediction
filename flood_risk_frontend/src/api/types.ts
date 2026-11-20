@@ -172,9 +172,6 @@ export interface RainfallArchiveObservation {
   district: string;
   date: string;
   rainfall_mm: number;
-  n_stations: number;
-  source: string;
-  is_estimated: boolean;
 }
 
 export interface RainfallArchiveResponse {
@@ -182,13 +179,10 @@ export interface RainfallArchiveResponse {
   total_matching: number;
   returned: number;
   limit: number;
-  actual_records: number;
-  estimated_records: number;
-  source_breakdown: Record<string, number>;
   filters: {
     district_id: number | null;
-    start: string | null;
-    end: string | null;
+    start: string;
+    end: string;
   };
   observations: RainfallArchiveObservation[];
   disclaimer: string;

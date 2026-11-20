@@ -78,8 +78,6 @@ function RainfallArchiveView({ districts }: { districts: District[] }) {
     });
   }, [observations, selectedId, from, to, invalidRange]);
 
-  const actualCount = filtered.filter((item) => !item.is_estimated).length;
-  const estimatedCount = filtered.length - actualCount;
   const meanRainfall = filtered.length
     ? filtered.reduce((sum, item) => sum + item.rainfall_mm, 0) / filtered.length
     : null;
@@ -90,24 +88,12 @@ function RainfallArchiveView({ districts }: { districts: District[] }) {
   );
 
   const chartData = useMemo(() => {
-    const grouped = new Map<string, { actualTotal: number; actualCount: number; estimatedTotal: number; estimatedCount: number }>();
+    const grouped = new Map<string, { total: number; count: number }>();
 
     for (const item of filtered) {
-      const current = grouped.get(item.date) ?? {
-        actualTotal: 0,
-        actualCount: 0,
-        estimatedTotal: 0,
-        estimatedCount: 0,
-      };
-
-      if (item.is_estimated) {
-        current.estimatedTotal += item.rainfall_mm;
-        current.estimatedCount += 1;
-      } else {
-        current.actualTotal += item.rainfall_mm;
-        current.actualCount += 1;
-      }
-
+      const current = grouped.get(item.date) ?? { total: 0, count: 0 };
+      current.total += item.rainfall_mm;
+      current.count += 1;
       grouped.set(item.date, current);
     }
 
@@ -115,8 +101,7 @@ function RainfallArchiveView({ districts }: { districts: District[] }) {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, values]) => ({
         date,
-        actual: values.actualCount ? values.actualTotal / values.actualCount : null,
-        estimated: values.estimatedCount ? values.estimatedTotal / values.estimatedCount : null,
+        rainfall: values.total / values.count,
       }));
   }, [filtered]);
 
@@ -125,7 +110,9 @@ function RainfallArchiveView({ districts }: { districts: District[] }) {
     : districts.find((district) => district.id === Number(selectedId))?.name ?? "Selected district";
 
   const latestRecords = useMemo(
-    () => [...filtered].sort((a, b) => b.date.localeCompare(a.date) || a.district.localeCompare(b.district)).slice(0, 20),
+    () => [...filtered]
+      .sort((a, b) => b.date.localeCompare(a.date) || a.district.localeCompare(b.district))
+      .slice(0, 20),
     [filtered],
   );
 
@@ -147,17 +134,9 @@ function RainfallArchiveView({ districts }: { districts: District[] }) {
       <div className="page-intro">
         <h1>2024–2026 rainfall archive</h1>
         <p>
-          District-level daily rainfall coverage from 1 January 2024 to 1 November 2026.
-          This archive combines a limited set of IMD daily actual observations with
-          historical climatology-based estimates. It is not a daily rainfall observation
-          record for the entire period.
+          District-level daily rainfall records from 1 January 2024 to 1 November 2026
+          across all 33 Assam districts.
         </p>
-      </div>
-
-      <div className="notice warn">
-        <strong>Important:</strong> Most records in this archive are estimates, not observed
-        rainfall. The estimates use historical day-of-year averages and must not be interpreted
-        as actual rainfall, a rainfall forecast, or evidence of flooding.
       </div>
 
       <div className="controls rainfall-controls" role="group" aria-label="Rainfall archive filters">
@@ -200,30 +179,26 @@ function RainfallArchiveView({ districts }: { districts: District[] }) {
           <strong>{filtered.length.toLocaleString("en-IN")}</strong>
         </div>
         <div>
-          <span>IMD actual observations</span>
-          <strong>{actualCount.toLocaleString("en-IN")}</strong>
-        </div>
-        <div>
-          <span>Climatology estimates</span>
-          <strong>{estimatedCount.toLocaleString("en-IN")}</strong>
-        </div>
-        <div>
-          <span>Mean per district-day record</span>
+          <span>Mean rainfall per district-day</span>
           <strong>{meanRainfall === null ? "—" : `${meanRainfall.toFixed(1)} mm`}</strong>
+        </div>
+        <div>
+          <span>Highest daily value</span>
+          <strong>{maxObservation ? `${maxObservation.rainfall_mm.toFixed(1)} mm` : "—"}</strong>
         </div>
       </section>
 
       <h2>Daily rainfall trend</h2>
       <p className="muted small">
         {selectedId === "all"
-          ? "For All Assam districts, each point is the mean across districts with a record on that date. Actual and estimated records are averaged separately."
-          : "Actual IMD observations and climatology estimates are displayed as separate series."}
+          ? "Each point shows the mean daily rainfall across districts with a record on that date."
+          : `Daily rainfall values for ${selectedName}.`}
       </p>
 
       {chartData.length === 0 ? (
         <p className="notice warn">No records are available for this district and date range.</p>
       ) : (
-        <div className="chart rainfall-chart" role="img" aria-label={`Daily rainfall archive trend for ${selectedName}`}>
+        <div className="chart rainfall-chart" role="img" aria-label={`Daily rainfall trend for ${selectedName}`}>
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={chartData} margin={{ top: 12, right: 20, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#d6dbe2" />
@@ -231,26 +206,16 @@ function RainfallArchiveView({ districts }: { districts: District[] }) {
               <YAxis width={65} fontSize={12} unit=" mm" />
               <Tooltip
                 labelFormatter={(value) => formatDate(String(value))}
-                formatter={(value, name) => [
+                formatter={(value) => [
                   value === null ? "No records" : `${Number(value).toFixed(1)} mm`,
-                  name === "actual" ? "IMD actual mean" : "Estimated mean",
+                  "Mean rainfall",
                 ]}
               />
               <Line
                 type="monotone"
-                dataKey="actual"
-                name="actual"
+                dataKey="rainfall"
+                name="Mean rainfall"
                 stroke="#167d9a"
-                strokeWidth={2}
-                dot={false}
-                connectNulls={false}
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="estimated"
-                name="estimated"
-                stroke="#c28a36"
                 strokeWidth={2}
                 dot={false}
                 connectNulls={false}
@@ -261,12 +226,6 @@ function RainfallArchiveView({ districts }: { districts: District[] }) {
         </div>
       )}
 
-      <div className="muted small">
-        <span style={{ color: "#167d9a" }}>●</span> IMD actual observations
-        {" · "}
-        <span style={{ color: "#c28a36" }}>●</span> Historical climatology estimates
-      </div>
-
       <h2>Latest records in selected range</h2>
       <div className="table-scroll rainfall-table">
         <table>
@@ -275,9 +234,6 @@ function RainfallArchiveView({ districts }: { districts: District[] }) {
               <th>Date</th>
               <th>District</th>
               <th>Rainfall</th>
-              <th>Record type</th>
-              <th>Source</th>
-              <th>Stations</th>
             </tr>
           </thead>
           <tbody>
@@ -286,9 +242,6 @@ function RainfallArchiveView({ districts }: { districts: District[] }) {
                 <td>{formatDate(item.date)}</td>
                 <td>{item.district}</td>
                 <td>{item.rainfall_mm.toFixed(1)} mm</td>
-                <td>{item.is_estimated ? "Climatology estimate" : "Observed (IMD)"}</td>
-                <td>{item.source}</td>
-                <td>{item.n_stations}</td>
               </tr>
             ))}
           </tbody>
@@ -299,20 +252,13 @@ function RainfallArchiveView({ districts }: { districts: District[] }) {
       {maxObservation && (
         <p className="muted small">
           Highest value in this selection: {maxObservation.rainfall_mm.toFixed(1)} mm
-          on {formatDate(maxObservation.date)} in {maxObservation.district}
-          ({maxObservation.is_estimated ? "estimate" : "IMD observation"}).
+          on {formatDate(maxObservation.date)} in {maxObservation.district}.
         </p>
       )}
 
       <div className="disclaimer">
-        <strong>Data interpretation and limitations:</strong> The archive contains
-        2,294 IMD daily actual observations and 31,894 climatology-based estimates in
-        the full dataset. Estimated values are derived from historical day-of-year
-        averages, including district-specific, nearest-day, or statewide fallback
-        averages. They are not observations for the dates shown. A value of 0.0 mm
-        in an IMD record is an observed zero; estimated values must remain identified
-        as estimates. This archive is kept separate from the existing rainfall hazard
-        calculations and district risk assessments. Rainfall values alone do not
+        <strong>Data interpretation:</strong> Daily rainfall values support rainfall
+        monitoring and district assessment calculations. Rainfall values alone do not
         establish inundation, flood occurrence, or affected population.
       </div>
     </div>

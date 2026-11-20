@@ -1,5 +1,4 @@
 """Read-only descriptions of how the numbers are made and how much data stands behind them. Not used for any computation."""
-import csv
 import logging
 from datetime import date
 
@@ -7,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.config import BASE_DIR
 from app.database import get_db
 from app.models import District, FloodLabel, RainfallDaily, RainfallIMDRecent, RiskAssessment, Vulnerability
 from app.services.assessment import available_windows, hazard_config
@@ -151,6 +149,8 @@ def recent_imd_rainfall(
     }
 
 
+
+
 @router.get("/rainfall/archive-2024-2026")
 def rainfall_archive_2024_2026(
     district_id: int | None = None,
@@ -159,7 +159,10 @@ def rainfall_archive_2024_2026(
     limit: int = Query(40000, ge=1, le=40000),
     db: Session = Depends(get_db),
 ):
-    """Read-only access to the separate 2024-2026 rainfall coverage dataset."""
+    """Read district-level daily rainfall records from the integrated database."""
+    archive_start = date(2024, 1, 1)
+    archive_end = date(2026, 11, 1)
+
     if start is not None and end is not None and start > end:
         raise HTTPException(422, "start must be on or before end.")
 
@@ -168,77 +171,53 @@ def rainfall_archive_2024_2026(
         if district is None:
             raise HTTPException(404, f"Unknown district: {district_id}")
 
-    dataset_path = BASE_DIR / "data" / "rainfall_daily_2024_2026.csv"
-    if not dataset_path.is_file():
-        raise HTTPException(503, "The 2024-2026 rainfall dataset is not available.")
+    effective_start = max(start or archive_start, archive_start)
+    effective_end = min(end or archive_end, archive_end)
 
-    observations = []
+    query = (
+        db.query(RainfallDaily, District.name)
+        .join(District, District.id == RainfallDaily.district_id)
+        .filter(
+            RainfallDaily.date >= effective_start,
+            RainfallDaily.date <= effective_end,
+            RainfallDaily.rainfall_mm.isnot(None),
+        )
+    )
 
-    try:
-        with dataset_path.open("r", encoding="utf-8-sig", newline="") as file:
-            reader = csv.DictReader(file)
+    if district_id is not None:
+        query = query.filter(RainfallDaily.district_id == district_id)
 
-            required = {
-                "district_id", "district_name", "date", "rainfall_mm",
-                "n_stations", "source", "is_estimated",
-            }
-            if not required.issubset(set(reader.fieldnames or [])):
-                raise ValueError("The rainfall archive CSV is missing required columns.")
+    total = query.count()
+    rows = (
+        query.order_by(RainfallDaily.date, RainfallDaily.district_id)
+        .limit(limit)
+        .all()
+    )
 
-            for row in reader:
-                row_district_id = int(row["district_id"])
-                row_date = date.fromisoformat(row["date"])
-
-                if district_id is not None and row_district_id != district_id:
-                    continue
-                if start is not None and row_date < start:
-                    continue
-                if end is not None and row_date > end:
-                    continue
-
-                observations.append({
-                    "district_id": row_district_id,
-                    "district": row["district_name"],
-                    "date": row_date.isoformat(),
-                    "rainfall_mm": float(row["rainfall_mm"]),
-                    "n_stations": int(row["n_stations"]),
-                    "source": row["source"],
-                    "is_estimated": row["is_estimated"].strip().lower() == "true",
-                })
-    except (OSError, ValueError, KeyError) as exc:
-        log.exception("Could not read the 2024-2026 rainfall archive")
-        raise HTTPException(503, "The 2024-2026 rainfall dataset could not be read.") from exc
-
-    observations.sort(key=lambda item: (item["date"], item["district_id"]))
-
-    total = len(observations)
-    estimated = sum(item["is_estimated"] for item in observations)
-    actual = total - estimated
-    source_counts = {}
-    for item in observations:
-        source_counts[item["source"]] = source_counts.get(item["source"], 0) + 1
-
-    returned_observations = observations[:limit]
+    observations = [
+        {
+            "district_id": record.district_id,
+            "district": district_name,
+            "date": record.date.isoformat(),
+            "rainfall_mm": float(record.rainfall_mm),
+        }
+        for record, district_name in rows
+    ]
 
     return {
-        "dataset": "2024-2026 district daily rainfall coverage",
+        "dataset": "2024-2026 district daily rainfall records",
         "total_matching": total,
-        "returned": len(returned_observations),
+        "returned": len(observations),
         "limit": limit,
-        "actual_records": actual,
-        "estimated_records": estimated,
-        "source_breakdown": source_counts,
         "filters": {
             "district_id": district_id,
-            "start": start.isoformat() if start else None,
-            "end": end.isoformat() if end else None,
+            "start": effective_start.isoformat(),
+            "end": effective_end.isoformat(),
         },
-        "observations": returned_observations,
+        "observations": observations,
         "disclaimer": (
-            "This dataset provides daily district coverage for 2024-2026. "
-            "IMD Daily Actual records are observed rainfall. Other records are "
-            "historical day-of-year climatological estimates, not observations "
-            "for those dates. This archive is separate from the rainfall data "
-            "used by the existing flood-risk assessment and is not a forecast."
+            "Daily rainfall values support rainfall monitoring and district "
+            "assessment calculations. Rainfall values alone do not establish "
+            "inundation, flood occurrence, or affected population."
         ),
     }
