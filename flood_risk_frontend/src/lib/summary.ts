@@ -1,7 +1,7 @@
-/** Counts the classes currently displayed. Unknown is never added to Low. */
+/** Counts only classes present in stored assessments. Unknown is never added to Low. */
 import type { Assessment, District, RiskClass } from "../api/types";
 import { CLASS_ORDER, type ColorMode } from "../constants";
-import { displayedClass } from "./demoRainfall";
+import { classFor, hazardClass } from "./assessment";
 
 export interface MapSummary {
   total: number;
@@ -30,14 +30,14 @@ export function summarize(
 
     if (!assessment) noAssessment++;
 
-    const result = displayedClass(assessment, mode, district.name);
+    const result = classFor(assessment, mode);
 
     if (result.cls !== "unknown") {
       assessed++;
       byClass[result.cls]++;
     }
 
-    if (displayedClass(assessment, "hazard", district.name).cls !== "unknown") {
+    if (hazardClass(assessment).cls !== "unknown") {
       withRainHazard++;
     }
   }

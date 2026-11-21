@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { Assessment, District } from "../api/types";
-import { DEMO_RAINFALL, displayedClass } from "../lib/demoRainfall";
+import { classFor, mm, pct } from "../lib/assessment";
 import { ClassChip } from "./ClassChip";
 
 export function DistrictTable({
@@ -25,10 +25,6 @@ export function DistrictTable({
         All {districts.length} districts as a table (text alternative to the map)
       </summary>
 
-      <p className="demo-data-note">
-        Illustrative rainfall demo values · not observed measurements
-      </p>
-
       <div className="table-scroll">
         <table>
           <thead>
@@ -37,17 +33,16 @@ export function DistrictTable({
               <th scope="col">Vulnerability</th>
               <th scope="col">Rain hazard</th>
               <th scope="col">Combined</th>
-              <th scope="col">Rain in demo window</th>
-              <th scope="col">Days represented</th>
+              <th scope="col">Rain in window</th>
+              <th scope="col">Observation coverage</th>
             </tr>
           </thead>
           <tbody>
             {sorted.map((d) => {
               const a = byDistrict.get(d.id);
-              const demo = DEMO_RAINFALL[d.name];
-              const vulnerability = displayedClass(a, "vulnerability", d.name);
-              const hazard = displayedClass(a, "hazard", d.name);
-              const combined = displayedClass(a, "combined", d.name);
+              const vulnerability = classFor(a, "vulnerability");
+              const hazard = classFor(a, "hazard");
+              const combined = classFor(a, "combined");
 
               return (
                 <tr
@@ -66,8 +61,8 @@ export function DistrictTable({
                   <td><ClassChip result={vulnerability} /></td>
                   <td><ClassChip result={hazard} /></td>
                   <td><ClassChip result={combined} /></td>
-                  <td>{!a ? "No assessment" : demo ? `${demo.rain.toFixed(1)} mm` : "No demo value"}</td>
-                  <td>{!a ? "No assessment" : demo ? `${demo.days} days` : "No demo value"}</td>
+                  <td>{a ? mm(a.hazard?.window_rain_mm) ?? "Unknown" : "No assessment"}</td>
+                  <td>{a ? pct(a.hazard?.obs_fraction) ?? "Unknown" : "No assessment"}</td>
                 </tr>
               );
             })}

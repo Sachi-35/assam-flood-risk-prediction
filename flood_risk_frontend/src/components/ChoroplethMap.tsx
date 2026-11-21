@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { GeoJSON, MapContainer, TileLayer, useMap } from "react-leaflet";
 import type { Assessment } from "../api/types";
 import { COLOR_MODES, type ColorMode } from "../constants";
-import { displayedClass, DEMO_RAINFALL } from "../lib/demoRainfall";
+import { classFor, mm, pct } from "../lib/assessment";
 import type { DistrictFeature } from "../lib/geo";
 import { patternFill } from "./MapPatterns";
 
@@ -39,7 +39,6 @@ export function ChoroplethMap({
   onSelect,
 }: Props) {
   const modeLabel = COLOR_MODES.find((m) => m.value === mode)!.label;
-  const isDemoMode = mode !== "vulnerability";
 
   return (
     <MapContainer
@@ -57,15 +56,11 @@ export function ChoroplethMap({
       <FitToDistricts features={features} />
 
       <GeoJSON
-        key={`${dataKey}|${mode}|${selectedId ?? "none"}|demo-v1`}
+        key={`${dataKey}|${mode}|${selectedId ?? "none"}`}
         data={{ type: "FeatureCollection", features } as never}
         style={(feature) => {
           const properties = feature?.properties as { id: number; name: string };
-          const result = displayedClass(
-            assessments.get(properties.id),
-            mode,
-            properties.name,
-          );
+          const result = classFor(assessments.get(properties.id), mode);
           const selected = properties.id === selectedId;
 
           return {
@@ -81,8 +76,8 @@ export function ChoroplethMap({
             name: string;
           };
 
-          const result = displayedClass(assessments.get(id), mode, name);
-          const demo = DEMO_RAINFALL[name];
+          const assessment = assessments.get(id);
+          const result = classFor(assessment, mode);
 
           const tip = document.createElement("div");
           const strong = document.createElement("strong");
@@ -90,19 +85,17 @@ export function ChoroplethMap({
           tip.append(strong, document.createElement("br"));
           tip.append(`${modeLabel}: ${result.label}`);
 
-          if (isDemoMode && demo) {
+          if (mode !== "vulnerability") {
             tip.append(
               document.createElement("br"),
-              `${demo.rain.toFixed(1)} mm · ${demo.days} days (illustrative demo)`,
+              `Rain in window: ${mm(assessment?.hazard?.window_rain_mm) ?? "Unknown"}`,
+              document.createElement("br"),
+              `Observation coverage: ${pct(assessment?.hazard?.obs_fraction) ?? "Unknown"}`,
             );
-          } else if (isDemoMode) {
-            tip.append(document.createElement("br"), "No demo value available");
-          } else if (!assessments.has(id)) {
-            tip.append(document.createElement("br"), "No assessment stored");
           }
 
-          if (isDemoMode) {
-            tip.append(document.createElement("br"), "Synthetic, not observed data");
+          if (result.reason) {
+            tip.append(document.createElement("br"), result.reason);
           }
 
           layer.bindTooltip(tip, { sticky: true });
@@ -124,9 +117,7 @@ export function ChoroplethMap({
               element.setAttribute("role", "button");
               element.setAttribute(
                 "aria-label",
-                `${name}: ${modeLabel} ${result.label}${
-                  isDemoMode ? ", illustrative synthetic demo value" : ""
-                }. Press Enter to open details.`,
+                `${name}: ${modeLabel} ${result.label}. Press Enter to open details.`,
               );
 
               element.addEventListener("keydown", (event) => {

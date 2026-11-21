@@ -84,15 +84,13 @@ function MapView({ windows, meaning, districts }: { windows: number[]; meaning: 
   const loading = datesState.status === "loading" || assessState.status === "loading";
   const noAssessments = datesState.status === "ok" && available.length === 0;
   const periodLabel =
-    mode !== "vulnerability"
-      ? "Illustrative demo values · not tied to the selected date or rainfall window"
-      : windowDays === null
-        ? "None offered by the backend"
-        : effectiveDate
-          ? `Last ${windowDays} days ending ${formatDate(effectiveDate)}`
-          : loading
-            ? "Loading…"
-            : "No stored assessments";
+    windowDays === null
+      ? "None offered by the backend"
+      : effectiveDate
+        ? `Last ${windowDays} days ending ${formatDate(effectiveDate)}`
+        : loading
+          ? "Loading…"
+          : "No stored assessments";
   const select = (id: number) => update({ district: String(id) });
 
   return (
@@ -104,6 +102,14 @@ function MapView({ windows, meaning, districts }: { windows: number[]; meaning: 
           It does not predict floods day by day. <span className="proto-tag">Academic prototype, not an official warning service.</span>
         </p>
       </header>
+
+      <p className="status-note" role="note">
+        Illustrative placeholders: when backend climatology-based classifications
+        are unavailable, rain hazard is estimated from rainfall-window totals
+        using display-only thresholds. Combined risk uses the higher of
+        vulnerability and illustrative rain hazard. These values are not
+        validated flood-risk classifications or official warnings.
+      </p>
 
       <SummaryStrip summary={summary} mode={mode} periodLabel={periodLabel} undrawn={geo.skipped.length} />
 
@@ -194,11 +200,6 @@ function MapView({ windows, meaning, districts }: { windows: number[]; meaning: 
               </div>
             )}
           </div>
-          {mode !== "vulnerability" && (
-            <p className="demo-data-note" role="note">
-              Illustrative rainfall demo · synthetic values, not observed measurements. Combined colours use these demo hazard classes with the available historical vulnerability classes.
-            </p>
-          )}
           <Legend mode={mode} />
           {geo.skipped.length > 0 && (
             <div className="state state-error" role="alert">

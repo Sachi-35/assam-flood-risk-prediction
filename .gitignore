@@ -26,3 +26,4 @@ flood_data_prep/data/backend_export/*
 
 # Generated reports
 flood_data_prep/reports/
+flood_risk_backend/.env
