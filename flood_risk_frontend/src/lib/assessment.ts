@@ -94,10 +94,12 @@ export function hazardClass(a: Assessment | undefined | null): ClassResult {
   const rainfall = a.hazard?.window_rain_mm;
 
   if (typeof rainfall === "number" && Number.isFinite(rainfall) && rainfall >= 0) {
-    return illustrativeResult(
-      illustrativeRainClass(rainfall),
-      ILLUSTRATIVE_REASON,
-    );
+    const reason =
+      a.status === "no_climatology"
+        ? "No climatology baseline is available. This is an illustrative placeholder based on rainfall amount, not a climatology-based hazard assessment."
+        : ILLUSTRATIVE_REASON;
+
+    return illustrativeResult(illustrativeRainClass(rainfall), reason);
   }
 
   return unknownResult(statusReason(a.status));
@@ -122,6 +124,15 @@ export function combinedClass(a: Assessment | undefined | null): ClassResult {
   const stored = asRiskClass(a.combined?.risk_class);
 
   if (stored) return knownResult(stored);
+
+  const storedCombinedClass = a.combined?.risk_class;
+  if (
+    storedCombinedClass !== null &&
+    storedCombinedClass !== undefined &&
+    storedCombinedClass !== ""
+  ) {
+    return unknownResult("The backend returned an unrecognised combined risk class.");
+  }
 
   const vulnerability = asRiskClass(a.vulnerability?.risk_class);
   const hazard = hazardClass(a);
