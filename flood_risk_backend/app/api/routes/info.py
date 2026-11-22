@@ -150,6 +150,81 @@ def recent_imd_rainfall(
 
 
 
+@router.get("/rainfall/combined")
+def combined_rainfall(
+    district_id: int | None = None,
+    start: date = date(2019, 1, 1),
+    end: date = date(2026, 11, 1),
+    limit: int = Query(50000, ge=1, le=50000),
+    db: Session = Depends(get_db),
+):
+    """Unified district-day rainfall records from the canonical RainfallDaily table."""
+    range_start = date(2019, 1, 1)
+    range_end = date(2026, 11, 1)
+
+    if start > end:
+        raise HTTPException(422, "start must be on or before end.")
+    if start < range_start or end > range_end:
+        raise HTTPException(
+            422,
+            f"Date range must stay between {range_start.isoformat()} and {range_end.isoformat()}.",
+        )
+
+    if district_id is not None:
+        district = db.query(District.id).filter(District.id == district_id).first()
+        if district is None:
+            raise HTTPException(404, f"Unknown district: {district_id}")
+
+    query = (
+        db.query(RainfallDaily, District.name)
+        .join(District, District.id == RainfallDaily.district_id)
+        .filter(
+            RainfallDaily.date >= start,
+            RainfallDaily.date <= end,
+            RainfallDaily.rainfall_mm.isnot(None),
+        )
+    )
+
+    if district_id is not None:
+        query = query.filter(RainfallDaily.district_id == district_id)
+
+    total = query.count()
+    rows = (
+        query.order_by(RainfallDaily.date, RainfallDaily.district_id)
+        .limit(limit)
+        .all()
+    )
+
+    observations = [
+        {
+            "district_id": record.district_id,
+            "district": district_name,
+            "date": record.date.isoformat(),
+            "rainfall_mm": float(record.rainfall_mm),
+        }
+        for record, district_name in rows
+    ]
+
+    return {
+        "dataset": "unified district daily rainfall 2019-2026",
+        "total_matching": total,
+        "returned": len(observations),
+        "limit": limit,
+        "filters": {
+            "district_id": district_id,
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+        },
+        "observations": observations,
+        "disclaimer": (
+            "Records combine the available district-day rainfall observations in the "
+            "canonical rainfall dataset. Coverage varies by district and date; a missing "
+            "record is not zero rainfall. Rainfall values alone do not establish "
+            "inundation, flood occurrence, affected population, or an official warning."
+        ),
+    }
+
+
 
 @router.get("/rainfall/archive-2024-2026")
 def rainfall_archive_2024_2026(

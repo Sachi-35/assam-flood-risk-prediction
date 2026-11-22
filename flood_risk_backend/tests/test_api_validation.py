@@ -26,6 +26,7 @@ def detail(r):
     ("get", "/districts/99/history", {"params": {"window_days": 3}}),
     ("get", "/districts/99/flood-impact", {}),
     ("get", "/rainfall/recent", {"params": {"district_id": 99}}),
+    ("get", "/rainfall/combined", {"params": {"district_id": 99}}),
     ("post", "/assess", {"json": {"district_id": 99, "window_days": 3, "window_end_date": "2023-07-15", "window_rain_mm": 10}}),
 ])
 def test_unknown_district_is_404_with_a_clear_message(client, method, url, kw):
@@ -53,6 +54,19 @@ def test_history_same_day_range_is_valid(client):
     r = client.get("/districts/1/history", params={"window_days": 3, "start": "2023-07-03", "end": "2023-07-03"})
     assert r.status_code == 200 and [x["as_of_date"] for x in r.json()] == ["2023-07-03"]
 
+
+
+def test_combined_rainfall_date_range_validation(client):
+    assert client.get("/rainfall/combined", params={"start": "2026-09-01", "end": "2026-08-01"}).status_code == 422
+    assert client.get("/rainfall/combined", params={"start": "2018-12-31"}).status_code == 422
+    assert client.get("/rainfall/combined", params={"end": "2026-11-02"}).status_code == 422
+    assert client.get("/rainfall/combined", params={"start": "2026-11-01", "end": "2026-11-01"}).status_code == 200
+
+
+def test_combined_rainfall_limit_bounds(client):
+    assert client.get("/rainfall/combined", params={"limit": 50000}).status_code == 200
+    for bad in ("0", "50001", "-1", "x"):
+        assert client.get("/rainfall/combined", params={"limit": bad}).status_code == 422
 
 def test_recent_rainfall_start_after_end_is_422(client):
     assert client.get("/rainfall/recent", params={"start": "2026-09-01", "end": "2026-08-01"}).status_code == 422

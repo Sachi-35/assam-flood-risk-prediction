@@ -203,6 +203,28 @@ export interface RecentRainfallResponse {
 }
 
 
+export interface CombinedRainfallObservation {
+  district_id: number;
+  district: string;
+  date: string;
+  rainfall_mm: number;
+}
+
+export interface CombinedRainfallResponse {
+  dataset: string;
+  total_matching: number;
+  returned: number;
+  limit: number;
+  filters: {
+    district_id: number | null;
+    start: string;
+    end: string;
+  };
+  observations: CombinedRainfallObservation[];
+  disclaimer: string;
+}
+
+
 export interface MLExperimentModel {
   model: string;
   features: string;

@@ -9,9 +9,12 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api/client";
-import type { RecentRainfallObservation, District } from "../api/types";
+import type { CombinedRainfallObservation, District } from "../api/types";
 import { BootGate } from "../components/BootGate";
 import { ErrorState, Loading } from "../components/StateViews";
+
+const RANGE_START = "2019-01-01";
+const RANGE_END = "2026-11-01";
 
 const formatDate = (value: string) =>
   new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", {
@@ -24,7 +27,10 @@ const shortDate = (value: string) =>
   new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
+    year: "2-digit",
   });
+
+const formatMm = (value: number) => `${value.toFixed(1)} mm`;
 
 export function RecentRainfallPage() {
   return (
@@ -35,25 +41,26 @@ export function RecentRainfallPage() {
 }
 
 function RecentRainfallView({ districts }: { districts: District[] }) {
-  const [observations, setObservations] = useState<RecentRainfallObservation[]>([]);
+  const [observations, setObservations] = useState<CombinedRainfallObservation[]>([]);
+  const [disclaimer, setDisclaimer] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [selectedId, setSelectedId] = useState("");
-
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
+  const [start, setStart] = useState(RANGE_START);
+  const [end, setEnd] = useState(RANGE_END);
 
   useEffect(() => {
     let active = true;
 
-    api.recentRainfall(10000)
+    api.rainfallCombined(null, RANGE_START, RANGE_END, 50000)
       .then((response) => {
         if (!active) return;
         setObservations(response.observations);
+        setDisclaimer(response.disclaimer);
       })
       .catch((err: unknown) => {
         if (!active) return;
-        setError(err instanceof Error ? err : new Error("Could not load IMD rainfall data."));
+        setError(err instanceof Error ? err : new Error("Could not load rainfall observations."));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -64,74 +71,76 @@ function RecentRainfallView({ districts }: { districts: District[] }) {
     };
   }, []);
 
-  const availableDistrictIds = useMemo(
-    () => [...new Set(observations.map((item) => item.district_id))].sort((a, b) => a - b),
-    [observations],
-  );
-
-  const activeId = selectedId || String(availableDistrictIds[0] ?? "");
-
-  const districtOptions = useMemo(
-    () =>
-      availableDistrictIds.map((id) => ({
-        id,
-        name: districts.find((district) => district.id === id)?.name
-          ?? observations.find((item) => item.district_id === id)?.district
-          ?? `District ${id}`,
-      })),
-    [availableDistrictIds, districts, observations],
-  );
-
-  const districtObservations = useMemo(
-    () =>
-      observations
-        .filter((item) => item.district_id === Number(activeId))
-        .sort((a, b) => a.date.localeCompare(b.date)),
-    [observations, activeId],
-  );
-
-  const minDate = districtObservations[0]?.date ?? "";
-  const maxDate = districtObservations[districtObservations.length - 1]?.date ?? "";
-
-  const from = start || minDate;
-  const to = end || maxDate;
-  const invalidRange = Boolean(from && to && from > to);
+  const activeId = selectedId === "" ? null : Number(selectedId);
+  const invalidRange = Boolean(start && end && start > end);
 
   const filtered = useMemo(
     () =>
       invalidRange
         ? []
-        : districtObservations.filter((item) => item.date >= from && item.date <= to),
-    [districtObservations, from, to, invalidRange],
+        : observations.filter((item) =>
+            (activeId === null || item.district_id === activeId)
+            && item.date >= start
+            && item.date <= end
+          ),
+    [observations, activeId, start, end, invalidRange],
   );
 
-  const totalRain = filtered.reduce((sum, item) => sum + item.rainfall_mm, 0);
-  const maxObservation = filtered.reduce<RecentRainfallObservation | null>(
-    (best, item) => (!best || item.rainfall_mm > best.rainfall_mm ? item : best),
-    null,
-  );
+  const summary = useMemo(() => {
+    const total = filtered.reduce((sum, item) => sum + item.rainfall_mm, 0);
+    const highest = filtered.reduce<CombinedRainfallObservation | null>(
+      (best, item) => (!best || item.rainfall_mm > best.rainfall_mm ? item : best),
+      null,
+    );
+    const districtCount = new Set(filtered.map((item) => item.district_id)).size;
 
-  const selectedName =
-    districtOptions.find((item) => String(item.id) === activeId)?.name ?? "District";
+    return {
+      total,
+      count: filtered.length,
+      mean: filtered.length ? total / filtered.length : null,
+      highest,
+      districtCount,
+    };
+  }, [filtered]);
+
+  const chartData = useMemo(() => {
+    const byDate = new Map<string, { total: number; count: number }>();
+
+    for (const item of filtered) {
+      const current = byDate.get(item.date) ?? { total: 0, count: 0 };
+      current.total += item.rainfall_mm;
+      current.count += 1;
+      byDate.set(item.date, current);
+    }
+
+    return [...byDate.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, value]) => ({
+        date,
+        rainfall_mm: value.total / value.count,
+        district_count: value.count,
+      }));
+  }, [filtered]);
+
+  const selectedName = activeId === null
+    ? "All districts"
+    : districts.find((district) => district.id === activeId)?.name ?? "Selected district";
+
+  const resetFilters = () => {
+    setSelectedId("");
+    setStart(RANGE_START);
+    setEnd(RANGE_END);
+  };
 
   if (loading) {
-    return <div className="page"><h1>Recent observed rainfall</h1><Loading label="Loading IMD rainfall observations…" /></div>;
+    return <div className="page"><h1>Recent Rainfall</h1><Loading label="Loading district rainfall records…" /></div>;
   }
 
   if (error) {
     return (
       <div className="page">
-        <h1>Recent observed rainfall</h1>
+        <h1>Recent Rainfall</h1>
         <ErrorState error={error} onRetry={() => window.location.reload()} />
-      </div>
-    );
-  }
-
-  if (observations.length === 0) {
-    return (
-      <div className="page">
-        <h1>Recent observed rainfall</h1>
-        <p className="notice warn">The backend returned no recent IMD rainfall observations.</p>
       </div>
     );
   }
@@ -139,20 +148,27 @@ function RecentRainfallView({ districts }: { districts: District[] }) {
   return (
     <div className="page">
       <div className="page-intro">
-        <h1>Recent observed rainfall</h1>
+        <h1>Recent Rainfall</h1>
         <p>
-          Daily rainfall observations published in the IMD district-wise dataset. 
-          This is a separate recent-data view, not an official flood warning or a flood-risk classification.
+          District-level daily rainfall observations from 2019 to 2026.
+          Select a district and date range to explore the available records.
+          Data availability varies across districts and years.
         </p>
       </div>
 
-      <div className="controls rainfall-controls" role="group" aria-label="Recent rainfall filters">
+      <div className="controls rainfall-controls" role="group" aria-label="Rainfall filters">
         <label>
           <span>District</span>
-          <select value={activeId} onChange={(e) => { setSelectedId(e.target.value); setStart(""); setEnd(""); }}>
-            {districtOptions.map((district) => (
-              <option key={district.id} value={district.id}>{district.name}</option>
-            ))}
+          <select
+            value={selectedId}
+            onChange={(event) => setSelectedId(event.target.value)}
+          >
+            <option value="">All districts</option>
+            {[...districts]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((district) => (
+                <option key={district.id} value={district.id}>{district.name}</option>
+              ))}
           </select>
         </label>
 
@@ -160,10 +176,10 @@ function RecentRainfallView({ districts }: { districts: District[] }) {
           <span>From</span>
           <input
             type="date"
-            value={from}
-            min={minDate}
-            max={maxDate}
-            onChange={(e) => setStart(e.target.value)}
+            value={start}
+            min={RANGE_START}
+            max={RANGE_END}
+            onChange={(event) => setStart(event.target.value)}
           />
         </label>
 
@@ -171,15 +187,15 @@ function RecentRainfallView({ districts }: { districts: District[] }) {
           <span>To</span>
           <input
             type="date"
-            value={to}
-            min={minDate}
-            max={maxDate}
-            onChange={(e) => setEnd(e.target.value)}
+            value={end}
+            min={RANGE_START}
+            max={RANGE_END}
+            onChange={(event) => setEnd(event.target.value)}
           />
         </label>
 
-        <button className="btn" type="button" onClick={() => { setStart(""); setEnd(""); }}>
-          Reset dates
+        <button className="btn" type="button" onClick={resetFilters}>
+          Reset filters
         </button>
       </div>
 
@@ -188,88 +204,133 @@ function RecentRainfallView({ districts }: { districts: District[] }) {
       )}
 
       <p className="muted small rainfall-coverage">
-        {selectedName} · {filtered.length} daily observations ·
-        {from && to ? ` ${formatDate(from)} to ${formatDate(to)}` : ""}
+        {selectedName} · {summary.count.toLocaleString("en-IN")} district-day observations ·
+        {` ${formatDate(start)} to ${formatDate(end)}`}
       </p>
 
       <section className="rainfall-stats" aria-label="Rainfall summary">
         <div>
-          <span>Total observed rainfall</span>
-          <strong>{totalRain.toFixed(1)} mm</strong>
+          <span>{activeId === null ? "Sum of district-day rainfall" : "Total rainfall in period"}</span>
+          <strong>{formatMm(summary.total)}</strong>
         </div>
         <div>
-          <span>Daily observations</span>
-          <strong>{filtered.length}</strong>
+          <span>Recorded district-day observations</span>
+          <strong>{summary.count.toLocaleString("en-IN")}</strong>
+        </div>
+        <div>
+          <span>Average per recorded observation</span>
+          <strong>{summary.mean === null ? "—" : formatMm(summary.mean)}</strong>
         </div>
         <div>
           <span>Highest daily rainfall</span>
-          <strong>{maxObservation ? `${maxObservation.rainfall_mm.toFixed(1)} mm` : "—"}</strong>
-          {maxObservation && <small>{formatDate(maxObservation.date)}</small>}
+          <strong>{summary.highest ? formatMm(summary.highest.rainfall_mm) : "—"}</strong>
+          {summary.highest && (
+            <small>{summary.highest.district} · {formatDate(summary.highest.date)}</small>
+          )}
+        </div>
+        <div>
+          <span>Districts represented</span>
+          <strong>{summary.districtCount} / 33</strong>
         </div>
       </section>
 
-      <h2>Daily rainfall trend</h2>
-      {filtered.length === 0 ? (
-        <p className="notice warn">No observations are available for this district and date range.</p>
+      <h2>{activeId === null ? "Average daily rainfall across reporting districts" : `Daily rainfall trend · ${selectedName}`}</h2>
+      {chartData.length === 0 ? (
+        <p className="notice warn">No rainfall observations are available for the selected filters.</p>
       ) : (
-        <div className="chart rainfall-chart" role="img" aria-label={`Daily observed rainfall in ${selectedName}, in millimetres`}>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={filtered} margin={{ top: 12, right: 20, bottom: 8, left: 8 }}>
+        <div
+          className="chart rainfall-chart"
+          role="img"
+          aria-label={`Daily rainfall trend for ${selectedName}, in millimetres`}
+        >
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={chartData} margin={{ top: 12, right: 20, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#d6dbe2" />
               <XAxis dataKey="date" tickFormatter={shortDate} fontSize={11} minTickGap={28} />
-              <YAxis width={65} fontSize={12} unit=" mm" />
+              <YAxis width={70} fontSize={12} unit=" mm" />
+              <YAxis yAxisId="right" orientation="right" hide domain={[0, 33]} />
               <Tooltip
                 labelFormatter={(value) => formatDate(String(value))}
-                formatter={(value) => [`${Number(value).toFixed(1)} mm`, "Daily rainfall"]}
+                formatter={(value, name) => {
+                  if (name === "Districts with records") {
+                    return [String(value), String(name)];
+                  }
+                  return [formatMm(Number(value)), "Average daily rainfall"];
+                }}
               />
               <Line
                 type="monotone"
                 dataKey="rainfall_mm"
-                name="Daily rainfall"
+                name="Average daily rainfall"
                 stroke="#167d9a"
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 5 }}
                 isAnimationActive={false}
               />
+              {activeId === null && (
+                <Line
+                  type="monotone"
+                  dataKey="district_count"
+                  name="Districts with records"
+                  stroke="#8a6bbd"
+                  strokeWidth={1.5}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                  isAnimationActive={false}
+                  yAxisId="right"
+                  hide
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         </div>
       )}
+      {activeId === null && (
+        <p className="muted small">
+          Each date shows the mean rainfall across districts with a recorded value on that date.
+          Dates without records are not filled with zero.
+        </p>
+      )}
 
       <h2>Daily observations</h2>
-      <div className="table-scroll rainfall-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>District</th>
-              <th>Daily actual rainfall</th>
-              <th>Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...filtered].reverse().slice(0, 20).map((item) => (
-              <tr key={`${item.district_id}-${item.date}`}>
-                <td>{formatDate(item.date)}</td>
-                <td>{item.district}</td>
-                <td>{item.rainfall_mm.toFixed(1)} mm</td>
-                <td>IMD</td>
+      {filtered.length === 0 ? (
+        <p className="notice warn">No observations match the selected filters.</p>
+      ) : (
+        <div className="table-scroll rainfall-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>District</th>
+                <th>Daily rainfall</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {[...filtered]
+                .sort((a, b) => b.date.localeCompare(a.date) || a.district.localeCompare(b.district))
+                .slice(0, 20)
+                .map((item) => (
+                  <tr key={`${item.district_id}-${item.date}`}>
+                    <td>{formatDate(item.date)}</td>
+                    <td>{item.district}</td>
+                    <td>{formatMm(item.rainfall_mm)}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
       <p className="muted small">
-        Showing the latest 20 observations in the selected range.
+        Showing the latest 20 records in the selected range, ordered by date.
       </p>
 
       <div className="disclaimer">
-        <strong>Data interpretation:</strong> Values are daily actual rainfall in millimetres.
-        A recorded 0.0 mm is an observed zero; a missing observation is not treated as zero.
-        These recent 2026 observations are kept separate from the historical rainfall and
-        climatology used by the existing assessment. They do not independently establish 
-        flood hazard, vulnerability, or an official warning.
+        <strong>Data interpretation:</strong> {disclaimer} A recorded 0.0 mm is an observed
+        zero; a missing observation is not treated as zero. For all-district summaries,
+        rainfall totals are sums of recorded district-day values and should not be interpreted
+        as a measured statewide rainfall total. Rainfall alone does not establish flood
+        occurrence, inundation, vulnerability, or an official warning.
       </div>
     </div>
   );

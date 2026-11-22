@@ -193,7 +193,7 @@ tr.selected { background: #e3f1f3; }
 .scenario-warning { border: 2px solid #8a5a00; background: #fff4dc; border-radius: var(--radius); padding: 0.7rem 0.9rem; margin: 0.8rem 0; }
 
 
-/* Recent IMD observed rainfall */
+/* Unified district rainfall */
 .rainfall-controls { margin: 0.8rem 0; }
 .rainfall-coverage { margin: 0.7rem 0; }
 .rainfall-stats {

@@ -6,6 +6,7 @@ import type {
   Assessment,
   District,
   RecentRainfallResponse,
+  CombinedRainfallResponse,
   RainfallArchiveResponse,
   FloodImpactRecord,
   FloodImpactResult,
@@ -114,6 +115,10 @@ export const api = {
   },
   recentRainfall: (limit = 10000) =>
     request<RecentRainfallResponse>("/rainfall/recent", { query: { limit } }),
+  rainfallCombined: (districtId?: number | null, start = "2019-01-01", end = "2026-11-01", limit = 50000) =>
+    request<CombinedRainfallResponse>("/rainfall/combined", {
+      query: { district_id: districtId, start, end, limit },
+    }),
   rainfallArchive: (districtId?: number | null, start?: string | null, end?: string | null, limit = 40000) =>
     request<RainfallArchiveResponse>("/rainfall/archive-2024-2026", {
       query: { district_id: districtId, start, end, limit },
