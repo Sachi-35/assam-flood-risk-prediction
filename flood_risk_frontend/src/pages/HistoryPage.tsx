@@ -6,7 +6,8 @@ import type { Assessment, District } from "../api/types";
 import { BootGate } from "../components/BootGate";
 import { FloodImpactSection } from "../components/FloodImpactSection";
 import { EmptyState, ErrorState, Loading } from "../components/StateViews";
-import { BACKEND_COMMANDS, CLASS_STYLE, HAZARD_LEVEL_CLASS } from "../constants";
+import { InfoNote, PageHeader, Section } from "../components/ui";
+import { BACKEND_COMMANDS, CLASS_STYLE, DATA_FACTS, HAZARD_LEVEL_CLASS } from "../constants";
 import { useAsync } from "../hooks/useAsync";
 import { useAvailableDates } from "../hooks/useAvailableDates";
 import { pickWindow } from "../hooks/useBoot";
@@ -54,8 +55,22 @@ function HistoryView({ windows, districts }: { windows: number[]; districts: Dis
 
   return (
     <div className="page">
-      <h1>History</h1>
-      <p>Two different kinds of record for one district. They are kept apart because they are different things.</p>
+      <PageHeader eyebrow="Explore · History" title="District history">
+        Two different kinds of record for one district, kept apart because they measure different things: reported seasonal flood impact, and observed rainfall.
+      </PageHeader>
+      <div className="grid grid-2" style={{ marginBottom: "1rem" }}>
+        <div className="card">
+          <h3>Historical flood impact</h3>
+          <p className="small">One record per district and year, from reported seasonal impact ({DATA_FACTS.labelYears}). It describes a whole season, not a single day or event.</p>
+        </div>
+        <div className="card">
+          <h3>Rainfall record</h3>
+          <p className="small">Rain totals over a chosen window, compared with the district's own history. It describes rain that was observed, not floods.</p>
+        </div>
+      </div>
+      <InfoNote title="Reading missing information">
+        <p>Grey, hatched or empty means Unknown: no usable record. It does not mean no flooding, no rain or Low risk. Gaps in a line chart are missing data, not zero.</p>
+      </InfoNote>
       <div className="controls" role="group" aria-label="District">
         <label>
           <span>District</span>
@@ -69,14 +84,14 @@ function HistoryView({ windows, districts }: { windows: number[]; districts: Dis
         </label>
       </div>
 
-      <h2>1. Historical flood impact (seasonal, by year)</h2>
-      <FloodImpactSection districtId={district.id} districtName={district.name} />
+      <Section title="1. Historical flood impact (seasonal, by year)" subtitle="Each tile is one reporting year for the selected district.">
+        <FloodImpactSection districtId={district.id} districtName={district.name} />
+      </Section>
 
-      <h2>2. Rainfall record (stored rainfall windows)</h2>
-      <p className="muted">
-        Each point is the total rain over the chosen window <em>ending</em> on that date, compared with this district's own history. It describes rain that was observed, not floods. Dates without
-        enough rainfall observations are gaps, not zero.
-      </p>
+      <Section
+        title="2. Rainfall record (stored rainfall windows)"
+        subtitle={<>Each point is the total rain over the chosen window <em>ending</em> on that date, compared with this district's own history. Dates without enough rainfall observations are gaps, not zero.</>}
+      >
       {windowDays === null ? (
         <EmptyState title="No rainfall window offered">The backend returned no window lengths, so there is no rainfall record to chart.</EmptyState>
       ) : (
@@ -140,6 +155,7 @@ function HistoryView({ windows, districts }: { windows: number[]; districts: Dis
           )}
         </>
       )}
+      </Section>
     </div>
   );
 }

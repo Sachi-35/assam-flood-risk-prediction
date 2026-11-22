@@ -1,13 +1,23 @@
-import { NavLink, Route, Routes } from "react-router-dom";
-import { apiBaseUrl } from "./api/client";
+import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { MapPatterns } from "./components/MapPatterns";
+import { SiteFooter } from "./components/SiteFooter";
+import { SiteHeader } from "./components/SiteHeader";
 import { AboutPage } from "./pages/AboutPage";
 import { HistoryPage } from "./pages/HistoryPage";
+import { HomePage } from "./pages/HomePage";
 import { MapPage } from "./pages/MapPage";
 import { ScenarioPage } from "./pages/ScenarioPage";
 import { RecentRainfallPage } from "./pages/RecentRainfallPage";
 // import { RainfallArchivePage } from "./pages/RainfallArchivePage";
 import { MLExperimentPage } from "./pages/MLExperimentPage";
+
+/** The map used to live at "/". Old links that carry map parameters are sent to /map with the parameters kept. */
+function Home() {
+  const { search } = useLocation();
+  const params = new URLSearchParams(search);
+  if (["district", "mode", "window", "date"].some((k) => params.has(k))) return <Navigate to={`/map${search}`} replace />;
+  return <HomePage />;
+}
 
 export default function App() {
   return (
@@ -16,39 +26,21 @@ export default function App() {
       <a href="#main" className="skip-link">
         Skip to content
       </a>
-      <header className="app-header">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">≈</span>
-          <div>
-            <strong>Assam Flood Risk</strong>
-            <small>Seasonal District-Level Assessment · Academic Prototype</small>
-          </div>
-        </div>
-        <nav aria-label="Main">
-          <NavLink to="/" end>Map</NavLink>
-          <NavLink to="/history">History</NavLink>
-          <NavLink to="/recent-rainfall">Recent Rainfall</NavLink>
-          {/* <NavLink to="/rainfall-archive">2024–26 Rainfall</NavLink> */}
-          <NavLink to="/ml-experiment">ML Experiment</NavLink>
-          {/* <NavLink to="/scenario">Rainfall Scenario</NavLink> */}
-          <NavLink to="/about">About &amp; Method</NavLink>
-        </nav>
-      </header>
+      <SiteHeader />
       <main id="main">
         <Routes>
-          <Route path="/" element={<MapPage />} />
+          <Route path="/" element={<Home />} />
+          <Route path="/map" element={<MapPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/recent-rainfall" element={<RecentRainfallPage />} />
           {/* <Route path="/rainfall-archive" element={<RainfallArchivePage />} /> */}
           <Route path="/ml-experiment" element={<MLExperimentPage />} />
           <Route path="/scenario" element={<ScenarioPage />} />
           <Route path="/about" element={<AboutPage />} />
-          <Route path="*" element={<div className="page"><h1>Page not found</h1><NavLink to="/">Back to the map</NavLink></div>} />
+          <Route path="*" element={<div className="page"><h1>Page not found</h1><NavLink to="/map">Back to the map</NavLink></div>} />
         </Routes>
       </main>
-      <footer className="app-footer">
-        Academic capstone prototype. Not an official flood-warning service and not a day-by-day prediction. Backend: <code>{apiBaseUrl()}</code>
-      </footer>
+      <SiteFooter />
     </>
   );
 }

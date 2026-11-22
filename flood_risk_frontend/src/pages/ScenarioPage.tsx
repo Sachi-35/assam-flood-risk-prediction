@@ -5,6 +5,7 @@ import type { Assessment, District, ScenarioRequest } from "../api/types";
 import { AssessmentView } from "../components/DistrictPanel";
 import { BootGate } from "../components/BootGate";
 import { ErrorState, Loading } from "../components/StateViews";
+import { PageHeader } from "../components/ui";
 import { useAvailableDates } from "../hooks/useAvailableDates";
 import { pickWindow } from "../hooks/useBoot";
 import { formatDate } from "../lib/dates";
@@ -142,7 +143,7 @@ function ScenarioView({ windows, districts }: { windows: number[]; districts: Di
 
   return (
     <div className="page narrow">
-      <h1>Rainfall scenario (hypothetical)</h1>
+      <PageHeader eyebrow="Explore · Hypothetical" title="Rainfall scenario (hypothetical)">An illustration of how the fixed rules rate a rain total that you type in. Nothing on this page is an observation or a prediction.</PageHeader>
       <aside className="scenario-warning" role="note">
         <strong>This page is illustrative only.</strong> You type in a rain total for a window and the backend rates it with the same fixed rules it uses for observed rain. The number you enter is
         not an observation, not a prediction and not a statement about what will happen. The result is never mixed into the map, the overview or the history, and it says nothing about the

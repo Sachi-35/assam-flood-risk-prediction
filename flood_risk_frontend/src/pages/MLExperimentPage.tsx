@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api/client";
 import type { MLExperimentSummary } from "../api/types";
+import { PageHeader, Section, StatCard } from "../components/ui";
+
+const CHANCE_REFERENCE = 0.25;
 
 function pct(value: number | null): string {
   return value == null ? "—" : `${(value * 100).toFixed(1)}%`;
@@ -62,16 +65,15 @@ export function MLExperimentPage() {
   }, []);
 
   if (loading) {
-    return <div className="page"><div className="state state-loading"><span className="spinner" /> Loading ML experiment results…</div></div>;
+    return <div className="page"><PageHeader eyebrow="Research · Experiment" title="ML Experiment" /><div className="state state-loading"><span className="spinner" /> Loading ML experiment results…</div></div>;
   }
+
+  const best = data ? data.models.reduce<MLExperimentSummary["models"][number] | null>((m, x) => (!m || x.macro_f1 > m.macro_f1 ? x : m), null) : null;
 
   if (error || !data) {
     return (
       <div className="page">
-        <div className="page-intro">
-          <h1>ML Experiment</h1>
-          <p>Retrospective model feasibility and validation results.</p>
-        </div>
+        <PageHeader eyebrow="Research · Experiment" title="ML Experiment">Retrospective model feasibility and validation results.</PageHeader>
         <div className="state state-error">
           <h3>Could not load the experiment</h3>
           <p>{error || "The backend returned no report."}</p>
@@ -83,28 +85,41 @@ export function MLExperimentPage() {
 
   return (
     <div className="page ml-page">
-      <div className="page-intro">
-        <h1>ML Experiment</h1>
-        <p>
-          Retrospective feasibility study comparing machine-learning approaches
-          for seasonal district-level flood-impact classification in Assam.
-        </p>
-      </div>
+      <PageHeader eyebrow="Research · Experiment" title="ML Experiment">
+        A retrospective feasibility study: can the available historical data support a machine-learning model of seasonal district-level flood impact in Assam?
+      </PageHeader>
 
       <div className="ml-status">
         <strong>Experimental only · Not integrated into live assessments</strong>
         <p>
-          These results evaluate whether the available historical data support
-          a reliable model. They do not provide current district risk estimates.
+          These results evaluate whether the available historical data support a reliable model. They do not provide current district risk estimates, and no trained
+          model feeds the risk map. The operational risk-assessment pages use fixed rules and historical records instead.
         </p>
       </div>
 
       <section className="ml-stats" aria-label="Dataset summary">
-        <div><span>Usable samples</span><strong>{data.n_rows}</strong><small>District-season records</small></div>
-        <div><span>Districts</span><strong>{data.n_districts}</strong><small>Out of 33 Assam districts</small></div>
-        <div><span>Labelled records</span><strong>{data.attrition.labelled_district_years}</strong><small>Before data filtering</small></div>
-        <div><span>Retained after filtering</span><strong>{data.attrition.with_at_least_30_rain_days}</strong><small>At least 30 reported rainfall days</small></div>
+        <StatCard label="Usable samples" value={data.n_rows} sub="District-season records" />
+        <StatCard label="Districts" value={data.n_districts} sub="Out of 33 Assam districts" />
+        <StatCard label="Labelled records" value={data.attrition.labelled_district_years} sub="Before data filtering" />
+        <StatCard label="Retained after filtering" value={data.attrition.with_at_least_30_rain_days} sub="At least 30 reported rainfall days" />
       </section>
+
+      <Section title="Understanding the metrics" subtitle="Plain-language meanings for the terms used in the tables below.">
+        <dl className="card metric-list" style={{ marginTop: 0 }}>
+          <dt>Macro-F1</dt>
+          <dd>A score from 0 to 1 that averages how well the model does on each of the four classes, giving rare classes the same weight as common ones. Higher is better. With four balanced classes, random guessing scores around {CHANCE_REFERENCE.toFixed(2)}.</dd>
+          <dt>Accuracy and balanced accuracy</dt>
+          <dd>Accuracy is the share of records classified correctly. Balanced accuracy averages the share correct within each class, so a model cannot look good just by favouring the most common class.</dd>
+          <dt>Ordinal MAE</dt>
+          <dd>The average number of classes a prediction is off by (for example, predicting Low when the actual class was High is 2 classes off). Lower is better.</dd>
+          <dt>Leave-One-District-Out (LODO) validation</dt>
+          <dd>Each district is held out in turn: the model is trained on the other districts and tested on the held-out one. This checks whether the model works on a district it has never seen.</dd>
+          <dt>95% confidence interval</dt>
+          <dd>A range of plausible macro-F1 values given the small sample. If the range includes the chance-level reference, the result cannot be told apart from guessing.</dd>
+          <dt>Permutation test and p-value</dt>
+          <dd>The labels are shuffled many times to see what scores arise by luck alone. The p-value is the share of shuffled runs that scored at least as well as the real one. A large p-value means the real score is not distinguishable from luck.</dd>
+        </dl>
+      </Section>
 
       <section className="ml-section">
         <h2>Dataset filtering</h2>
@@ -159,12 +174,16 @@ export function MLExperimentPage() {
             </tbody>
           </table>
         </div>
-        <p className="notice warn">
-          The Logistic Regression model with terrain and rainfall features had
-          the highest macro-F1 (0.407), but its confidence interval
-          (0.230–0.513) includes the 0.25 chance-level reference. This is not
-          sufficient evidence of reliable generalisation.
-        </p>
+        {best && (
+          <p className="notice warn">
+            The {modelName(best.model)} model with {featureName(best.features).toLowerCase()} features had the highest macro-F1 ({best.macro_f1.toFixed(3)})
+            {best.macro_f1_ci95
+              ? best.macro_f1_ci95[0] <= CHANCE_REFERENCE && CHANCE_REFERENCE <= best.macro_f1_ci95[1]
+                ? `, but its 95% confidence interval (${best.macro_f1_ci95[0].toFixed(3)}–${best.macro_f1_ci95[1].toFixed(3)}) includes the ${CHANCE_REFERENCE.toFixed(2)} chance-level reference. This is not sufficient evidence of reliable generalisation.`
+                : `. Its 95% confidence interval is ${best.macro_f1_ci95[0].toFixed(3)}–${best.macro_f1_ci95[1].toFixed(3)}. Read this together with the small sample and the limitations below; it does not make the model suitable for operational use.`
+              : ". No confidence interval was reported for it, so the score should be treated with caution given the small sample."}
+          </p>
+        )}
       </section>
 
       <section className="ml-section">
@@ -195,9 +214,10 @@ export function MLExperimentPage() {
           </table>
         </div>
         <p className="notice warn">
-          The terrain + rainfall Random Forest permutation-test p-value is
-          {` ${data.permutation_test.static_plus_rain.p_value.toFixed(3)} `}.
-          The test does not provide evidence of useful predictive signal.
+          The terrain + rainfall Random Forest permutation-test p-value is {data.permutation_test.static_plus_rain.p_value.toFixed(3)}.{" "}
+          {data.permutation_test.static_plus_rain.p_value >= 0.05
+            ? "The test does not provide evidence of useful predictive signal."
+            : "This is below 0.05 for this test, but with a sample this small it still does not make the model suitable for operational use."}
         </p>
       </section>
 

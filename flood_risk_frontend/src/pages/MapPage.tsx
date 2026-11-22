@@ -7,6 +7,7 @@ import { ChoroplethMap } from "../components/ChoroplethMap";
 import { DistrictPanel } from "../components/DistrictPanel";
 import { DistrictTable } from "../components/DistrictTable";
 import { Legend } from "../components/Legend";
+import { InfoNote, PageHeader } from "../components/ui";
 import { SummaryStrip } from "../components/SummaryStrip";
 import { EmptyState, ErrorState, Loading, isNotFound } from "../components/StateViews";
 import { BACKEND_COMMANDS, COLOR_MODES, DEFAULT_MODE, type ColorMode } from "../constants";
@@ -94,24 +95,28 @@ function MapView({ windows, meaning, districts }: { windows: number[]; meaning: 
   const select = (id: number) => update({ district: String(id) });
 
   return (
-    <div className="map-page">
-      <header className="page-intro">
-        <h1>Assam seasonal flood-risk assessment</h1>
-        <p>
-          District-level view combining each district's <strong>vulnerability</strong> (seasonal flood-impact class) with an optional <strong>rain hazard</strong> where rainfall observations exist.
-          It does not predict floods day by day. <span className="proto-tag">Academic prototype, not an official warning service.</span>
-        </p>
-      </header>
+    <div className="page map-page">
+      <PageHeader eyebrow="Explore · District risk" title="District flood-risk assessment">
+        A district-level view of seasonal <strong>vulnerability</strong> and, where rainfall observations exist, <strong>rain hazard</strong>.{" "}
+        It does not predict floods day by day. <span className="proto-tag">Academic prototype, not an official warning service.</span>
+      </PageHeader>
 
-      <p className="status-note" role="note">
-        Illustrative placeholders: when backend climatology-based classifications
-        are unavailable, rain hazard is estimated from rainfall-window totals
-        using display-only thresholds. Combined risk uses the higher of
-        vulnerability and illustrative rain hazard. These values are not
-        validated flood-risk classifications or official warnings.
-      </p>
+      <InfoNote variant="caution" title="Illustrative placeholders">
+        When backend climatology-based classifications are unavailable, rain hazard is estimated from rainfall-window totals using display-only thresholds.
+        Combined risk uses the higher of vulnerability and illustrative rain hazard. These values are not validated flood-risk classifications or official
+        warnings.
+      </InfoNote>
 
-      <SummaryStrip summary={summary} mode={mode} periodLabel={periodLabel} undrawn={geo.skipped.length} />
+      <details className="how-to">
+        <summary>How to read this map</summary>
+        <ul>
+          <li><strong>Each district is coloured by one measure</strong> chosen below: vulnerability (a seasonal class from historical impact), rain hazard (recent rainfall versus the district's own history) or a rule-based combination.</li>
+          <li><strong>Darker means a higher class.</strong> Patterns repeat the colour so classes are distinguishable without colour.</li>
+          <li><strong>Grey with hatching means Unknown.</strong> No assessment or not enough data. It never means Low risk.</li>
+          <li><strong>Select a district</strong> on the map or in the table for terrain facts, history and the full assessment.</li>
+          <li>Rain hazard needs rainfall observations, which exist for only some districts. Rainfall alone does not establish flooding.</li>
+        </ul>
+      </details>
 
       <div className="controls" role="group" aria-label="Map controls">
         <fieldset className="segmented">
@@ -201,6 +206,9 @@ function MapView({ windows, meaning, districts }: { windows: number[]; meaning: 
             )}
           </div>
           <Legend mode={mode} />
+          <div className="below-map">
+            <SummaryStrip summary={summary} mode={mode} periodLabel={periodLabel} undrawn={geo.skipped.length} />
+          </div>
           {geo.skipped.length > 0 && (
             <div className="state state-error" role="alert">
               <h3>{geo.skipped.length} district(s) cannot be drawn</h3>

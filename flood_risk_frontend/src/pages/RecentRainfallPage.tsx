@@ -12,6 +12,7 @@ import { api } from "../api/client";
 import type { CombinedRainfallObservation, District } from "../api/types";
 import { BootGate } from "../components/BootGate";
 import { ErrorState, Loading } from "../components/StateViews";
+import { InfoNote, PageHeader, Section, StatCard } from "../components/ui";
 
 const RANGE_START = "2019-01-01";
 const RANGE_END = "2026-11-01";
@@ -133,13 +134,13 @@ function RecentRainfallView({ districts }: { districts: District[] }) {
   };
 
   if (loading) {
-    return <div className="page"><h1>Recent Rainfall</h1><Loading label="Loading district rainfall records…" /></div>;
+    return <div className="page"><PageHeader eyebrow="Explore · Rainfall" title="Recent Rainfall" /><Loading label="Loading district rainfall records…" /></div>;
   }
 
   if (error) {
     return (
       <div className="page">
-        <h1>Recent Rainfall</h1>
+        <PageHeader eyebrow="Explore · Rainfall" title="Recent Rainfall" />
         <ErrorState error={error} onRetry={() => window.location.reload()} />
       </div>
     );
@@ -147,22 +148,15 @@ function RecentRainfallView({ districts }: { districts: District[] }) {
 
   return (
     <div className="page">
-      <div className="page-intro">
-        <h1>Recent Rainfall</h1>
-        <p>
-          District-level daily rainfall observations from 2019 to 2026.
-          Select a district and date range to explore the available records.
-          Data availability varies across districts and years.
-        </p>
-      </div>
+      <PageHeader eyebrow="Explore · Rainfall" title="Recent Rainfall">
+        Daily district-level rainfall observations from 2019 to 2026. Choose a district and a date range to explore the records. Coverage varies between
+        districts and years, so every figure on this page describes only the observations that were recorded.
+      </PageHeader>
 
       <div className="controls rainfall-controls" role="group" aria-label="Rainfall filters">
         <label>
           <span>District</span>
-          <select
-            value={selectedId}
-            onChange={(event) => setSelectedId(event.target.value)}
-          >
+          <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
             <option value="">All districts</option>
             {[...districts]
               .sort((a, b) => a.name.localeCompare(b.name))
@@ -174,24 +168,12 @@ function RecentRainfallView({ districts }: { districts: District[] }) {
 
         <label>
           <span>From</span>
-          <input
-            type="date"
-            value={start}
-            min={RANGE_START}
-            max={RANGE_END}
-            onChange={(event) => setStart(event.target.value)}
-          />
+          <input type="date" value={start} min={RANGE_START} max={RANGE_END} onChange={(event) => setStart(event.target.value)} />
         </label>
 
         <label>
           <span>To</span>
-          <input
-            type="date"
-            value={end}
-            min={RANGE_START}
-            max={RANGE_END}
-            onChange={(event) => setEnd(event.target.value)}
-          />
+          <input type="date" value={end} min={RANGE_START} max={RANGE_END} onChange={(event) => setEnd(event.target.value)} />
         </label>
 
         <button className="btn" type="button" onClick={resetFilters}>
@@ -208,122 +190,104 @@ function RecentRainfallView({ districts }: { districts: District[] }) {
         {` ${formatDate(start)} to ${formatDate(end)}`}
       </p>
 
-      <section className="rainfall-stats" aria-label="Rainfall summary">
-        <div>
-          <span>{activeId === null ? "Sum of district-day rainfall" : "Total rainfall in period"}</span>
-          <strong>{formatMm(summary.total)}</strong>
-        </div>
-        <div>
-          <span>Recorded district-day observations</span>
-          <strong>{summary.count.toLocaleString("en-IN")}</strong>
-        </div>
-        <div>
-          <span>Average per recorded observation</span>
-          <strong>{summary.mean === null ? "—" : formatMm(summary.mean)}</strong>
-        </div>
-        <div>
-          <span>Highest daily rainfall</span>
-          <strong>{summary.highest ? formatMm(summary.highest.rainfall_mm) : "—"}</strong>
-          {summary.highest && (
-            <small>{summary.highest.district} · {formatDate(summary.highest.date)}</small>
-          )}
-        </div>
-        <div>
-          <span>Districts represented</span>
-          <strong>{summary.districtCount} / 33</strong>
-        </div>
-      </section>
+      <Section title="Summary of the selected records" subtitle="Each figure is calculated only from district-day observations that were recorded in the selected range.">
+        <section className="rainfall-stats" aria-label="Rainfall summary">
+          <StatCard
+            label="Cumulative district-day rainfall"
+            value={formatMm(summary.total)}
+            note={
+              activeId === null
+                ? "The sum of every recorded district-day measurement. It is not a statewide rainfall total."
+                : "The sum of this district's recorded daily measurements in the range."
+            }
+          />
+          <StatCard label="Recorded district-day observations" value={summary.count.toLocaleString("en-IN")} note="One observation is one district on one date. Dates with no record are not counted." />
+          <StatCard label="Average per recorded observation" value={summary.mean === null ? "—" : formatMm(summary.mean)} note="Cumulative rainfall divided by the number of recorded observations." />
+          <StatCard
+            label="Highest daily rainfall"
+            value={summary.highest ? formatMm(summary.highest.rainfall_mm) : "—"}
+            sub={summary.highest ? `${summary.highest.district} · ${formatDate(summary.highest.date)}` : undefined}
+            note="The largest single recorded district-day value in the range."
+          />
+          <StatCard label="Districts represented" value={`${summary.districtCount} / 33`} note="Districts with at least one recorded observation in the range." />
+        </section>
+      </Section>
 
-      <h2>{activeId === null ? "Average daily rainfall across reporting districts" : `Daily rainfall trend · ${selectedName}`}</h2>
-      {chartData.length === 0 ? (
-        <p className="notice warn">No rainfall observations are available for the selected filters.</p>
-      ) : (
-        <div
-          className="chart rainfall-chart"
-          role="img"
-          aria-label={`Daily rainfall trend for ${selectedName}, in millimetres`}
-        >
-          <ResponsiveContainer width="100%" height={320}>
-            <LineChart data={chartData} margin={{ top: 12, right: 20, bottom: 8, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#d6dbe2" />
-              <XAxis dataKey="date" tickFormatter={shortDate} fontSize={11} minTickGap={28} />
-              <YAxis width={70} fontSize={12} unit=" mm" />
-              <YAxis yAxisId="right" orientation="right" hide domain={[0, 33]} />
-              <Tooltip
-                labelFormatter={(value) => formatDate(String(value))}
-                formatter={(value, name) => {
-                  if (name === "Districts with records") {
-                    return [String(value), String(name)];
-                  }
-                  return [formatMm(Number(value)), "Average daily rainfall"];
-                }}
-              />
-              <Line
-                type="monotone"
-                dataKey="rainfall_mm"
-                name="Average daily rainfall"
-                stroke="#167d9a"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 5 }}
-                isAnimationActive={false}
-              />
-              {activeId === null && (
-                <Line
-                  type="monotone"
-                  dataKey="district_count"
-                  name="Districts with records"
-                  stroke="#8a6bbd"
-                  strokeWidth={1.5}
-                  dot={false}
-                  activeDot={{ r: 4 }}
-                  isAnimationActive={false}
-                  yAxisId="right"
-                  hide
+      <Section
+        title={activeId === null ? "Average daily rainfall across reporting districts" : `Daily rainfall trend · ${selectedName}`}
+        subtitle={
+          activeId === null
+            ? "Each point is the mean rainfall across the districts that have a recorded observation on that date. It is an average, not a sum across districts."
+            : `Each point is ${selectedName}'s recorded rainfall for that day.`
+        }
+      >
+        {chartData.length === 0 ? (
+          <p className="notice warn">No rainfall observations are available for the selected filters.</p>
+        ) : (
+          <div className="chart rainfall-chart" role="img" aria-label={`Daily rainfall trend for ${selectedName}, in millimetres`}>
+            <ResponsiveContainer width="100%" height={340}>
+              <LineChart data={chartData} margin={{ top: 12, right: 20, bottom: 8, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#d6dbe2" />
+                <XAxis dataKey="date" tickFormatter={shortDate} fontSize={11} minTickGap={28} />
+                <YAxis width={70} fontSize={12} unit=" mm" />
+                <YAxis yAxisId="right" orientation="right" hide domain={[0, 33]} />
+                <Tooltip
+                  labelFormatter={(value) => formatDate(String(value))}
+                  formatter={(value, name) => {
+                    if (name === "Districts with records") {
+                      return [String(value), String(name)];
+                    }
+                    return [formatMm(Number(value)), "Average daily rainfall"];
+                  }}
                 />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-      {activeId === null && (
-        <p className="muted small">
-          Each date shows the mean rainfall across districts with a recorded value on that date.
-          Dates without records are not filled with zero.
-        </p>
-      )}
+                <Line type="monotone" dataKey="rainfall_mm" name="Average daily rainfall" stroke="#0f6a78" strokeWidth={2} dot={false} activeDot={{ r: 5 }} isAnimationActive={false} />
+                {activeId === null && (
+                  <Line type="monotone" dataKey="district_count" name="Districts with records" stroke="#8a6bbd" strokeWidth={1.5} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} yAxisId="right" hide />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        <InfoNote title="Reading this chart">
+          <p>
+            {activeId === null
+              ? "The number of reporting districts differs from date to date, so a change in the line can reflect which districts reported as well as how much rain fell. "
+              : ""}
+            Dates without a record are left out of the line. They are not filled with zero. A recorded 0.0 mm is a real observed zero; a missing observation is unknown.
+          </p>
+        </InfoNote>
+      </Section>
 
-      <h2>Daily observations</h2>
-      {filtered.length === 0 ? (
-        <p className="notice warn">No observations match the selected filters.</p>
-      ) : (
-        <div className="table-scroll rainfall-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>District</th>
-                <th>Daily rainfall</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...filtered]
-                .sort((a, b) => b.date.localeCompare(a.date) || a.district.localeCompare(b.district))
-                .slice(0, 20)
-                .map((item) => (
-                  <tr key={`${item.district_id}-${item.date}`}>
-                    <td>{formatDate(item.date)}</td>
-                    <td>{item.district}</td>
-                    <td>{formatMm(item.rainfall_mm)}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <p className="muted small">
-        Showing the latest 20 records in the selected range, ordered by date.
-      </p>
+      <Section title="Daily observations" subtitle="The most recent records in the selected range.">
+        {filtered.length === 0 ? (
+          <p className="notice warn">No observations match the selected filters.</p>
+        ) : (
+          <div className="table-scroll rainfall-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>District</th>
+                  <th>Daily rainfall</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...filtered]
+                  .sort((a, b) => b.date.localeCompare(a.date) || a.district.localeCompare(b.district))
+                  .slice(0, 20)
+                  .map((item) => (
+                    <tr key={`${item.district_id}-${item.date}`}>
+                      <td>{formatDate(item.date)}</td>
+                      <td>{item.district}</td>
+                      <td>{formatMm(item.rainfall_mm)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="muted small">Showing the latest 20 records in the selected range, ordered by date.</p>
+      </Section>
 
       <div className="disclaimer">
         <strong>Data interpretation:</strong> {disclaimer} A recorded 0.0 mm is an observed
